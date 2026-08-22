@@ -1,0 +1,10 @@
+{
+  "name": "stylelink-preview",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-dependency static server for the StyleLink HTML mockup screens.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}

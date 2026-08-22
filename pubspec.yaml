@@ -1,0 +1,47 @@
+name: stylelink
+description: "StyleLink — premium beauty & barber booking for Cameroon. Clients discover stylists; providers manage schedules."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase backend: authentication, Postgres database, and realtime.
+  supabase_flutter: ^2.0.0
+
+  # Locale-aware formatting of FCFA amounts and dates.
+  intl: ^0.19.0
+
+  # Persistent key-value storage (e.g. onboarding completion, per-device).
+  shared_preferences: ^2.2.0
+
+  # Standard Material icons.
+  cupertino_icons: ^1.0.6
+  image_picker: ^1.2.3
+
+  # Launch URLs (Google Maps navigation, etc.).
+  url_launcher: ^6.3.1
+
+  # Device location (GPS coordinates for arrival tracking).
+  geolocator: ^14.0.0
+
+  # Firebase core + cloud messaging for real push notifications.
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.0
+
+  # Local push notifications for booking status alerts.
+  flutter_local_notifications: ^18.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # Official lint ruleset from the Flutter team.
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
