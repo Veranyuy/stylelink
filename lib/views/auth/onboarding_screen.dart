@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/supabase_service.dart';
-import 'auth_screen.dart';
 
 /// Shows 3 illustrated onboarding pages on first launch, then routes to
 /// [AuthScreen]. Persisted via SharedPreferences so it only appears once.
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({super.key, this.onComplete});
+
+  /// Called when the user finishes (or skips) onboarding.
+  /// The parent should rebuild to show the auth screen.
+  final VoidCallback? onComplete;
 
   /// Check whether onboarding has already been completed.
   static Future<bool> shouldShow() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('onboarding_completed') ?? true; // default: skip
+    // On first launch the key is null → return true (show onboarding).
+    return prefs.getBool('onboarding_seen') ?? true;
   }
 
-  /// Mark onboarding as completed (called after the last page).
-  static Future<void> complete() async {
+  /// Mark onboarding as seen so it won't appear again.
+  static Future<void> markSeen() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_completed', false);
+    await prefs.setBool('onboarding_seen', false);
   }
 
   @override
@@ -77,18 +80,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finish() async {
-    await OnboardingScreen.complete();
+    await OnboardingScreen.markSeen();
     if (!mounted) return;
-    // Check if already signed in.
-    final session = SupabaseService.instance.currentSession;
-    if (session != null) {
-      // Already authenticated — pop back to root (AuthGate will route).
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AuthScreen()),
-      );
-    }
+    // Notify parent (the gate) to switch from onboarding → auth.
+    widget.onComplete?.call();
   }
 
   void _skip() => _finish();

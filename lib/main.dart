@@ -288,26 +288,46 @@ class _ErrorScreen extends StatelessWidget {
 }
 
 /// Decides whether to show onboarding or the auth screen on first launch.
-class _OnboardingOrAuthGate extends StatelessWidget {
+///
+/// Uses a [StatefulWidget] instead of a [FutureBuilder] so the onboarding→
+/// auth transition can happen via a simple [setState] callback rather than
+/// Navigator navigation (which would destroy the [AuthGate] widget tree).
+class _OnboardingOrAuthGate extends StatefulWidget {
   const _OnboardingOrAuthGate();
 
   @override
+  State<_OnboardingOrAuthGate> createState() => _OnboardingOrAuthGateState();
+}
+
+class _OnboardingOrAuthGateState extends State<_OnboardingOrAuthGate> {
+  bool? _showOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboarding();
+  }
+
+  Future<void> _checkOnboarding() async {
+    final shouldShow = await OnboardingScreen.shouldShow();
+    if (mounted) setState(() => _showOnboarding = shouldShow);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<bool>(
-      future: OnboardingScreen.shouldShow(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final showOnboarding = snapshot.data ?? false;
-        if (showOnboarding) {
-          return const OnboardingScreen();
-        }
-        return const AuthScreen();
-      },
-    );
+    if (_showOnboarding == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_showOnboarding!) {
+      return OnboardingScreen(
+        onComplete: () {
+          if (mounted) setState(() => _showOnboarding = false);
+        },
+      );
+    }
+    return const AuthScreen();
   }
 }
 
