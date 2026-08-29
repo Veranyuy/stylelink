@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/profile.dart';
 import '../../models/provider.dart';
 import '../../providers/language_provider.dart';
+import '../../services/analytics_service.dart';
+import '../../services/deep_link_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/custom_avatar.dart';
@@ -54,6 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<String> _favoriteIds = {};
   StreamSubscription<Set<String>>? _favSub;
 
+  /// Live blocked provider ids — these are excluded from the feed.
+  Set<String> _blockedIds = {};
+  StreamSubscription<Set<String>>? _blockedSub;
+
   /// Cache of provider_id -> profile avatar_url for the card badge.
   Map<String, String?> _avatarCache = {};
 
@@ -74,12 +80,14 @@ class _HomeScreenState extends State<HomeScreen> {
     _profileFuture = supabase.fetchCurrentProfile();
     _reloadProviders();
     _watchFavorites();
+    _watchBlocked();
     _subscribeToProviders();
   }
 
   @override
   void dispose() {
     _favSub?.cancel();
+    _blockedSub?.cancel();
     _debounce?.cancel();
     _providersChannel?.unsubscribe();
     _search.dispose();
@@ -91,6 +99,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (userId == null) return;
     _favSub = supabase.watchFavoriteProviderIds(userId).listen((ids) {
       if (mounted) setState(() => _favoriteIds = ids);
+    });
+  }
+
+  void _watchBlocked() {
+    _blockedSub = supabase.watchBlockedProviderIds().listen((ids) {
+      if (mounted) setState(() => _blockedIds = ids);
     });
   }
 
@@ -155,10 +169,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       _query = value.trim().isEmpty ? null : value.trim();
       _reloadProviders();
+      if (_query != null) {
+        AnalyticsService.instance.logSearch(
+          query: _query,
+          category: _categories[_selectedCategory],
+          city: _cityFilter,
+        );
+      }
     });
   }
 
   void _openProvider(Provider provider) async {
+    AnalyticsService.instance.logProviderViewed(
+      providerId: provider.id,
+      category: provider.category,
+    );
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProviderDetailScreen(
@@ -183,6 +208,10 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         await supabase.addFavorite(userId: userId, providerId: provider.id);
       }
+      AnalyticsService.instance.logFavoriteToggled(
+        providerId: provider.id,
+        isFavorited: !wasFavorite,
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -229,7 +258,12 @@ class _HomeScreenState extends State<HomeScreen> {
             _profileFuture = supabase.fetchCurrentProfile();
           });
           _reloadProviders();
-          await _providersFuture;
+          // Await both futures so the refresh indicator stays visible
+          // until the data is loaded.
+          await Future.wait([
+            if (_profileFuture != null) _profileFuture!,
+            if (_providersFuture != null) _providersFuture!,
+          ]);
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -268,7 +302,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     onRetry: _reloadProviders,
                   );
                 }
-                final providers = snapshot.data ?? const <Provider>[];
+                final providers = (snapshot.data ?? const <Provider>[])
+                    .where((p) => !_blockedIds.contains(p.id))
+                    .toList();
                 if (providers.isEmpty) {
                   return const EmptyState(
                     icon: Icons.storefront_outlined,
@@ -565,9 +601,13 @@ class _ProviderCard extends StatelessWidget {
   final VoidCallback onFavorite;
 
   void _share(BuildContext context) {
-    Clipboard.setData(
-      ClipboardData(text: 'Check out ${provider.businessName} on StyleLink!'),
+    final text = DeepLinkService.instance.providerShareText(
+      businessName: provider.businessName,
+      category: provider.category,
+      providerId: provider.id,
+      city: provider.city,
     );
+    Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Link copied / Lien copié')),
     );

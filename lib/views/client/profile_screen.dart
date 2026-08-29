@@ -7,6 +7,7 @@ import '../../models/provider.dart';
 import '../../providers/language_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../widgets/custom_avatar.dart';
+import '../provider/provider_onboarding.dart';
 import 'provider_detail_screen.dart';
 
 /// Client Profile tab — redesigned with gradient header, horizontal favorites,
@@ -287,29 +288,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ── Business setup modal ──────────────────────────────────────────────
 
   Future<void> _showBusinessSetup() async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFFAF7F3),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ProviderOnboarding(
+          onComplete: () {
+            setState(() {});
+            widget.onProviderUpgraded?.call();
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'You are now a provider! Use the toggle in the top bar '
+                    'to switch to Provider Mode.',
+                  ),
+                ),
+              );
+            }
+          },
+        ),
       ),
-      builder: (_) => const _BusinessSetupSheet(),
     );
-    if (result == true && mounted) {
-      setState(() {});
-      widget.onProviderUpgraded?.call();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'You are now a provider! Use the toggle in the top bar '
-              'to switch to Provider Mode.',
-            ),
-          ),
-        );
-      }
-    }
   }
 
   Future<void> _confirmDeleteAccount() async {

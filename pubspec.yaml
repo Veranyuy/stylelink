@@ -32,6 +32,7 @@ dependencies:
   # Firebase core + cloud messaging for real push notifications.
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.0
+  firebase_analytics: ^11.4.0
 
   # Local push notifications for booking status alerts.
   flutter_local_notifications: ^18.0.0

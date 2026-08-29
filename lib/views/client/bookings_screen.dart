@@ -5,6 +5,7 @@ import '../../models/provider.dart';
 import '../../models/service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/review_modal.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/state_views.dart';
 import '../widgets/status_badge.dart';
@@ -27,11 +28,13 @@ class _BookingRow {
     required this.booking,
     required this.provider,
     required this.services,
+    this.isReviewed = false,
   });
 
   final Booking booking;
   final Provider? provider;
   final List<Service> services;
+  final bool isReviewed;
 }
 
 class _BookingsScreenState extends State<BookingsScreen> {
@@ -67,6 +70,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
       final providersById = {for (final p in providers) p.id: p};
       final servicesById = {for (final s in services) s.id: s};
 
+      // Check review status for completed bookings.
+      final completedIds = filtered
+          .where((b) => b.status == BookingStatus.completed)
+          .map((b) => b.id)
+          .toList();
+      final reviewStatus = <String, bool>{};
+      for (final id in completedIds) {
+        reviewStatus[id] = await supabase.isBookingReviewed(id);
+      }
+
       return filtered
           .map(
             (b) => _BookingRow(
@@ -76,6 +89,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   .map((id) => servicesById[id])
                   .whereType<Service>()
                   .toList(),
+              isReviewed: reviewStatus[b.id] ?? false,
             ),
           )
           .toList();
@@ -92,6 +106,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   void _retry() {
     setState(() => _stream = _buildStream());
+  }
+
+  Future<void> _rateBooking(_BookingRow row) async {
+    final provider = row.provider;
+    if (provider == null) return;
+    final submitted = await ReviewModal.show(
+      context,
+      bookingId: row.booking.id,
+      providerId: row.booking.providerId,
+      providerName: provider.businessName,
+      onReviewSubmitted: _retry,
+    );
+    if (submitted) _retry();
   }
 
   Future<void> _cancelBooking(Booking booking) async {
@@ -243,6 +270,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
             row: rows[i],
             onCancel: () => _cancelBooking(rows[i].booking),
             onMessage: () => _openChat(rows[i].provider),
+            onRate: rows[i].booking.status == BookingStatus.completed && !rows[i].isReviewed
+                ? () => _rateBooking(rows[i])
+                : null,
           ),
         );
       },
@@ -255,11 +285,13 @@ class _BookingCard extends StatelessWidget {
     required this.row,
     required this.onCancel,
     required this.onMessage,
+    this.onRate,
   });
 
   final _BookingRow row;
   final VoidCallback onCancel;
   final VoidCallback onMessage;
+  final VoidCallback? onRate;
 
   @override
   Widget build(BuildContext context) {
@@ -323,12 +355,11 @@ class _BookingCard extends StatelessWidget {
             _detailRow(Icons.place_outlined, location),
             const SizedBox(height: 12),
             Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    row.services.isEmpty
-                        ? '${row.services.length} services'
-                        : row.services.map((s) => s.name).join(' + '),
+              children: [                  Expanded(
+                    child: Text(
+                      row.services.isEmpty
+                          ? '${row.booking.serviceIds.length} service${row.booking.serviceIds.length == 1 ? '' : 's'}'
+                          : row.services.map((s) => s.name).join(' + '),
                     style: TextStyle(
                       fontSize: 12.5,
                       color: Colors.grey.shade700,
@@ -378,18 +409,58 @@ class _BookingCard extends StatelessWidget {
             ] else
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: onMessage,
-                    icon: const Icon(Icons.chat_bubble_outline, size: 17),
-                    label: const Text('Message Provider'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF6E6A76),
-                      side: const BorderSide(color: Color(0x33000000)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onMessage,
+                      icon: const Icon(Icons.chat_bubble_outline, size: 17),
+                      label: const Text('Message Provider'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF6E6A76),
+                        side: const BorderSide(color: Color(0x33000000)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
                     ),
-                  ),
+                    if (onRate != null && !row.isReviewed) ...[
+                      const SizedBox(width: 10),
+                      FilledButton.icon(
+                        onPressed: onRate,
+                        icon: const Icon(Icons.star_outline, size: 17),
+                        label: const Text('Rate'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFB93F),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ],
+                    if (row.isReviewed) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0x143FBF7F),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, size: 14, color: Color(0xFF3FBF7F)),
+                            SizedBox(width: 4),
+                            Text('Reviewed',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF3FBF7F),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
           ],

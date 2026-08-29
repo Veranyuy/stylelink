@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/profile.dart';
+import '../../services/analytics_service.dart';
 import '../../services/supabase_service.dart';
 import '../widgets/logo_lockup.dart';
 
@@ -63,6 +64,7 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       final launched =
           await SupabaseService.instance.signInWithGoogle(role: UserRole.client);
+      AnalyticsService.instance.logLogin(method: 'google');
       if (!launched && mounted) {
         _showError('Could not open Google sign-in. Please try again.');
       }
@@ -108,6 +110,7 @@ class _AuthScreenState extends State<AuthScreen> {
               _phone.text.trim().isEmpty ? null : _normalizePhone(_phone.text),
           role: UserRole.client,
         );
+        AnalyticsService.instance.logSignUp(method: 'email');
         if (response.session == null && mounted) {
           setState(() {
             _notice = 'Account created - check your email to confirm, then sign in.';
@@ -115,6 +118,7 @@ class _AuthScreenState extends State<AuthScreen> {
         }
       } else {
         await service.signInWithEmail(email: email, password: password);
+        AnalyticsService.instance.logLogin(method: 'email');
       }
       if (service.currentSession != null) await _handleSession();
     } on AuthException catch (e) {

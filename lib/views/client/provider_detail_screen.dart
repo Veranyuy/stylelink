@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../models/provider.dart';
 import '../../models/service.dart';
+import '../../services/analytics_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../widgets/skeleton.dart';
@@ -79,6 +80,9 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
   }
 
   Future<void> _openSlotPicker() async {
+    // Resolve the provider so we can pass working hours to the slot picker.
+    final provider = await _providerFuture;
+    if (!mounted) return;
     final selection = await showModalBottomSheet<DateTime>(
       context: context,
       isScrollControlled: true,
@@ -86,7 +90,10 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => _SlotPickerSheet(initial: _scheduledAt),
+      builder: (_) => _SlotPickerSheet(
+        initial: _scheduledAt,
+        workingHours: provider?.workingHours ?? const {},
+      ),
     );
     if (selection != null && mounted) {
       setState(() => _scheduledAt = selection);
@@ -99,6 +106,23 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
 
     setState(() => _submitting = true);
     try {
+      // Pre-flight check: ensure the provider isn't already booked at this time.
+      final available = await supabase.checkProviderSlotAvailable(
+        providerId: widget.providerId,
+        scheduledAt: _scheduledAt!,
+      );
+      if (!available && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This time slot is no longer available. Please pick another.'),
+            backgroundColor: Color(0xFFB3261E),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        setState(() => _submitting = false);
+        return;
+      }
+
       final booking = await supabase.createBooking(
         clientId: user.id,
         providerId: widget.providerId,
@@ -106,6 +130,11 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
         scheduledAt: _scheduledAt!,
         totalPriceFcfa: _totalFcfa,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+      );
+      AnalyticsService.instance.logBookingCreated(
+        providerId: widget.providerId,
+        serviceCount: _selectedIds.length,
+        totalPriceFcfa: _totalFcfa,
       );
 
       if (!mounted) return;
@@ -189,12 +218,73 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
 
   static void _nothing() {}
 
+  Future<void> _showReportDialog(Provider provider) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.flag_outlined, color: Color(0xFFE5484D), size: 36),
+        title: const Text('Report / Block'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Block ${provider.businessName} so they no longer appear in your search results.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            const _ReportReasonChip(label: 'Inappropriate content', value: 'inappropriate'),
+            const SizedBox(height: 8),
+            const _ReportReasonChip(label: 'Spam or fake profile', value: 'spam'),
+            const SizedBox(height: 8),
+            const _ReportReasonChip(label: 'Other', value: 'other'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || !mounted) return;
+    try {
+      await SupabaseService.instance.blockProvider(
+        providerId: provider.id,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${provider.businessName} blocked.'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => SupabaseService.instance.unblockProvider(provider.id),
+          ),
+        ),
+      );
+      if (mounted) Navigator.of(context).pop(); // go back to home
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not block provider: $e'),
+          backgroundColor: const Color(0xFFB3261E),
+        ),
+      );
+    }
+  }
+
   /// Mockup layout: soft-focus hero header, Overview / Reviews tabs, then the
   /// profile card (avatar, name, verified badge), bio, tag row and portfolio.
   Widget _buildDetail(Provider provider) {
     return Column(
       children: [
-        _HeroHeader(provider: provider),
+        _HeroHeader(
+          provider: provider,
+          onReport: () => _showReportDialog(provider),
+        ),
         Container(
           color: Colors.white,
           child: TabBar(
@@ -726,11 +816,17 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
 }
 
 /// Modal date & time slot picker: a 7-day strip plus hourly slots
-/// (9:00 AM – 7:00 PM), matching the app's mockup flow.
+/// filtered by the provider's working hours. When hours are set for a day,
+/// only slots within the open window are shown. When hours are not set,
+/// the provider is closed that day and no slots are offered.
 class _SlotPickerSheet extends StatefulWidget {
-  const _SlotPickerSheet({this.initial});
+  const _SlotPickerSheet({this.initial, this.workingHours = const {}});
 
   final DateTime? initial;
+
+  /// Provider's weekly schedule keyed by day abbreviation ("Mon"…"Sun").
+  /// Values are "HH:MM-HH:MM" windows or null when closed.
+  final Map<String, String?> workingHours;
 
   @override
   State<_SlotPickerSheet> createState() => _SlotPickerSheetState();
@@ -756,10 +852,38 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
       ? null
       : TimeOfDay.fromDateTime(widget.initial!);
 
+  /// Day abbreviation for the currently selected day ("Mon"…"Sun").
+  String get _selectedDayAbbr {
+    const abbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return abbr[_selectedDay.weekday - 1];
+  }
+
+  /// Whether the provider is open on the selected day.
+  bool get _isOpen {
+    if (widget.workingHours.isEmpty) return true; // no hours set → show all
+    return widget.workingHours.containsKey(_selectedDayAbbr);
+  }
+
+  /// Parse the working hours window for the selected day.
+  /// Returns (openHour, closeHour) or null if not set.
+  (int, int)? _parseHours() {
+    final window = widget.workingHours[_selectedDayAbbr];
+    if (window == null || window.isEmpty) return null;
+    final parts = window.split('-');
+    if (parts.length != 2) return null;
+    final open = int.tryParse(parts[0].split(':')[0]);
+    final close = int.tryParse(parts[1].split(':')[0]);
+    if (open == null || close == null) return null;
+    return (open, close);
+  }
+
   List<DateTime> get _slots {
     final now = DateTime.now();
+    final hours = _parseHours();
+    final startHour = hours?.$1 ?? 9;
+    final endHour = hours?.$2 ?? 19;
     return [
-      for (var h = 9; h <= 19; h++)
+      for (var h = startHour; h <= endHour; h++)
         DateTime(_selectedDay.year, _selectedDay.month, _selectedDay.day, h),
     ].where((s) => !s.isBefore(now)).toList();
   }
@@ -807,6 +931,9 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                 itemBuilder: (context, i) {
                   final day = _days[i];
                   final active = _isSameDay(day, _selectedDay);
+                  final dayAbbr = _weekday(day);
+                  final isClosed = widget.workingHours.isNotEmpty &&
+                      !widget.workingHours.containsKey(dayAbbr);
                   return GestureDetector(
                     onTap: () => setState(() {
                       _selectedDay = day;
@@ -823,20 +950,24 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                         border: Border.all(
                           color: active
                               ? const Color(0xFFF4665C)
-                              : const Color(0x18000000),
+                              : isClosed
+                                  ? const Color(0x33E5484D)
+                                  : const Color(0x18000000),
                         ),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            _weekday(day),
+                            dayAbbr,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: active
                                   ? Colors.white
-                                  : Colors.grey.shade500,
+                                  : isClosed
+                                      ? const Color(0xFFE5484D)
+                                      : Colors.grey.shade500,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -847,9 +978,21 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                               fontWeight: FontWeight.w700,
                               color: active
                                   ? Colors.white
-                                  : const Color(0xFF2A2730),
+                                  : isClosed
+                                      ? const Color(0xFFE5484D)
+                                      : const Color(0xFF2A2730),
                             ),
                           ),
+                          if (isClosed && !active)
+                            Container(
+                              width: 4,
+                              height: 4,
+                              margin: const EdgeInsets.only(top: 2),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE5484D),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -858,23 +1001,55 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
               ),
             ),
             const SizedBox(height: 14),
-            Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: [
-                for (final slot in _slots)
-                  _TimeChip(
-                    time: slot,
-                    selected:
-                        _selectedTime?.hour == slot.hour &&
-                        _selectedTime?.minute == slot.minute,
-                    onTap: () => setState(() => _selectedTime = TimeOfDay(
-                          hour: slot.hour,
-                          minute: slot.minute,
-                        )),
+            if (!_isOpen)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.schedule_outlined, size: 32, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Provider closed on ${_weekday(_selectedDay)}',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                      Text(
+                        'Choisissez un autre jour.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              )
+            else if (_slots.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Text(
+                    'No more available slots today.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 9,
+                runSpacing: 9,
+                children: [
+                  for (final slot in _slots)
+                    _TimeChip(
+                      time: slot,
+                      selected:
+                          _selectedTime?.hour == slot.hour &&
+                          _selectedTime?.minute == slot.minute,
+                      onTap: () => setState(() => _selectedTime = TimeOfDay(
+                            hour: slot.hour,
+                            minute: slot.minute,
+                          )),
+                    ),
+                ],
+              ),
             const SizedBox(height: 18),
             FilledButton(
               onPressed: _selectedTime == null ? null : _confirm,
@@ -1075,9 +1250,10 @@ class _Avatar extends StatelessWidget {
 /// into the white page, a back button, and the gradient "Provider Profile"
 /// title.
 class _HeroHeader extends StatelessWidget {
-  const _HeroHeader({required this.provider});
+  const _HeroHeader({required this.provider, this.onReport});
 
   final Provider provider;
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -1128,6 +1304,36 @@ class _HeroHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (onReport != null)
+            Positioned(
+              top: 14,
+              right: 14,
+              child: PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'report') onReport!();
+                },
+                icon: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.more_vert, size: 18, color: Color(0xFF2A2730)),
+                ),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: 'report',
+                    child: Row(
+                      children: [
+                        Icon(Icons.flag_outlined, size: 18, color: Color(0xFFE5484D)),
+                        SizedBox(width: 10),
+                        Text('Report / Block'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Positioned(
             left: 20,
             bottom: 16,
@@ -1450,6 +1656,29 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ReportReasonChip extends StatelessWidget {
+  const _ReportReasonChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: () => Navigator.of(context).pop(value),
+        style: OutlinedButton.styleFrom(
+          alignment: Alignment.centerLeft,
+          side: const BorderSide(color: Color(0x33000000)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 13.5)),
       ),
     );
   }

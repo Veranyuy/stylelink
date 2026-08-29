@@ -254,12 +254,34 @@ class NotificationService {
         .listen(_onClientBookingsUpdate);
 
     // ── Provider bookings ─────────────────────────────────────────────
-    _providerSub = db
-        .from('bookings')
-        .stream(primaryKey: ['id'])
-        .eq('provider_id', userId)
-        .order('created_at', ascending: false)
-        .listen(_onProviderBookingsUpdate);
+    // bookings.provider_id references providers(id), not auth.users(id),
+    // so we must resolve the provider row ID before subscribing.
+    _resolveProviderAndSubscribe(userId, db);
+  }
+
+  /// Look up the provider row for the given auth user, then subscribe to
+  /// bookings filtered by that provider ID.
+  Future<void> _resolveProviderAndSubscribe(
+    String userId,
+    SupabaseClient db,
+  ) async {
+    try {
+      final rows = await db
+          .from('providers')
+          .select('id')
+          .eq('user_id', userId)
+          .limit(1);
+      if (rows.isEmpty) return; // not a provider
+      final providerId = rows.first['id'] as String;
+      _providerSub = db
+          .from('bookings')
+          .stream(primaryKey: ['id'])
+          .eq('provider_id', providerId)
+          .order('created_at', ascending: false)
+          .listen(_onProviderBookingsUpdate);
+    } catch (e) {
+      debugPrint('Failed to resolve provider ID for notifications: $e');
+    }
   }
 
   /// Stop all active listeners.

@@ -148,6 +148,7 @@ class ServiceTrackerController extends ChangeNotifier {
         if (arrivalLng != null) update['arrival_lng'] = arrivalLng;
         await _db.from('bookings').update(update).eq('id', bookingId);
         notifyListeners();
+        break;
 
       // ── arrived → in_progress (PIN verification) ─────────────────────
       case BookingStatus.arrived:
@@ -157,6 +158,7 @@ class ServiceTrackerController extends ChangeNotifier {
           'started_at': DateTime.now().toUtc().toIso8601String(),
         }).eq('id', bookingId);
         notifyListeners();
+        break;
 
       // ── in_progress → completed ──────────────────────────────────────
       case BookingStatus.inProgress:
@@ -165,6 +167,7 @@ class ServiceTrackerController extends ChangeNotifier {
           'completed_at': DateTime.now().toUtc().toIso8601String(),
         }).eq('id', bookingId);
         notifyListeners();
+        break;
 
       // ── invalid transition ───────────────────────────────────────────
       default:

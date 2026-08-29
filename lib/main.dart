@@ -11,6 +11,7 @@ import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
 import 'services/supabase_service.dart';
 import 'views/auth/auth_screen.dart';
+import 'views/auth/onboarding_screen.dart';
 import 'views/client/client_shell.dart';
 import 'views/provider/provider_shell.dart';
 
@@ -184,7 +185,7 @@ class _AuthGateState extends State<AuthGate> {
         final session = snapshot.data?.session;
         if (session == null) {
           _showProviderMode = false;
-          return const AuthScreen();
+          return const _OnboardingOrAuthGate();
         }
         return FutureBuilder<UserRole?>(
           // Changing [future] forces the FutureBuilder to re-evaluate.
@@ -282,6 +283,30 @@ class _ErrorScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Decides whether to show onboarding or the auth screen on first launch.
+class _OnboardingOrAuthGate extends StatelessWidget {
+  const _OnboardingOrAuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: OnboardingScreen.shouldShow(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final showOnboarding = snapshot.data ?? false;
+        if (showOnboarding) {
+          return const OnboardingScreen();
+        }
+        return const AuthScreen();
+      },
     );
   }
 }

@@ -508,6 +508,30 @@ class SupabaseService {
   // Bookings
   // ---------------------------------------------------------------------------
 
+  /// Check whether a provider already has a non-cancelled booking at the
+  /// requested time. Returns `true` when the slot is free.
+  ///
+  /// This is a client-side pre-flight check — the DB trigger may also
+  /// enforce uniqueness server-side.
+  Future<bool> checkProviderSlotAvailable({
+    required String providerId,
+    required DateTime scheduledAt,
+  }) async {
+    try {
+      final rows = await _db
+          .from('bookings')
+          .select('id')
+          .eq('provider_id', providerId)
+          .eq('scheduled_at', scheduledAt.toUtc().toIso8601String())
+          .not('status', 'eq', 'cancelled')
+          .limit(1);
+      return rows.isEmpty;
+    } catch (_) {
+      // If the check fails, allow the booking (the DB trigger will catch it).
+      return true;
+    }
+  }
+
   /// Insert a new booking request (status starts as "pending" in the DB).
   ///
   /// `totalPriceFcfa` should be the sum of the selected services' prices.
@@ -971,6 +995,65 @@ class SupabaseService {
   /// Permanently delete a service listing.
   Future<void> deleteService(String serviceId) async {
     await _db.from('services').delete().eq('id', serviceId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Blocked providers
+  // ---------------------------------------------------------------------------
+
+  /// Block a provider — they won't appear in the client's search results.
+  Future<void> blockProvider({
+    required String providerId,
+    String? reason,
+  }) async {
+    final user = currentUser;
+    if (user == null) throw const AuthException('You are not signed in.');
+    await _db.from('blocked_providers').upsert({
+      'user_id': user.id,
+      'provider_id': providerId,
+      'reason': reason,
+    }, onConflict: 'user_id,provider_id');
+  }
+
+  /// Unblock a previously blocked provider.
+  Future<void> unblockProvider(String providerId) async {
+    final user = currentUser;
+    if (user == null) throw const AuthException('You are not signed in.');
+    await _db
+        .from('blocked_providers')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('provider_id', providerId);
+  }
+
+  /// Live stream of blocked provider IDs for the current user.
+  Stream<Set<String>> watchBlockedProviderIds() {
+    final userId = currentUser?.id;
+    if (userId == null) return Stream.value(const {});
+    return _db
+        .from('blocked_providers')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .map((rows) => rows
+            .map((r) => r['provider_id'].toString())
+            .toSet());
+  }
+
+  /// Check if a specific provider is blocked.
+  Future<bool> isProviderBlocked(String providerId) async {
+    final user = currentUser;
+    if (user == null) return false;
+    try {
+      final rows = await _db
+          .from('blocked_providers')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider_id', providerId)
+          .limit(1);
+      return rows.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------------------
