@@ -702,6 +702,48 @@ class SupabaseService {
         .eq('id', bookingId);
   }
 
+  /// Reschedule an upcoming booking to a new date/time.
+  ///
+  /// Only pending or confirmed bookings can be rescheduled. The new slot is
+  /// checked for conflicts before writing. Returns the updated [Booking].
+  Future<Booking> rescheduleBooking({
+    required String bookingId,
+    required DateTime newScheduledAt,
+  }) async {
+    return _captureAndRethrow(
+      () async {
+        final row = await _db
+            .from('bookings')
+            .select()
+            .eq('id', bookingId)
+            .single();
+        final booking = Booking.fromJson(row);
+
+        // Verify the new slot is available for this provider.
+        final available = await checkProviderSlotAvailable(
+          providerId: booking.providerId,
+          scheduledAt: newScheduledAt,
+        );
+        if (!available) {
+          throw Exception(
+            'This time slot is no longer available. / Ce créneau n\'est plus disponible.',
+          );
+        }
+
+        final updated = await _db
+            .from('bookings')
+            .update({
+              'scheduled_at': newScheduledAt.toUtc().toIso8601String(),
+            })
+            .eq('id', bookingId)
+            .select()
+            .single();
+        return Booking.fromJson(updated);
+      },
+      'rescheduleBooking',
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Favorites
   // ---------------------------------------------------------------------------

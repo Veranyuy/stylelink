@@ -6,6 +6,7 @@ import '../../models/service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/review_modal.dart';
+import '../widgets/reschedule_sheet.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/state_views.dart';
 import '../widgets/status_badge.dart';
@@ -119,6 +120,22 @@ class _BookingsScreenState extends State<BookingsScreen> {
       onReviewSubmitted: _retry,
     );
     if (submitted) _retry();
+  }
+
+  Future<void> _rescheduleBooking(_BookingRow row) async {
+    final newTime = await RescheduleSheet.show(
+      context,
+      booking: row.booking,
+      provider: row.provider,
+    );
+    if (newTime != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Rescheduled to ${formatBookingDateTime(newTime)}'),
+        ),
+      );
+      _retry();
+    }
   }
 
   Future<void> _cancelBooking(Booking booking) async {
@@ -269,6 +286,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
           itemBuilder: (context, i) => _BookingCard(
             row: rows[i],
             onCancel: () => _cancelBooking(rows[i].booking),
+            onReschedule: rows[i].booking.isUpcoming
+                ? () => _rescheduleBooking(rows[i])
+                : null,
             onMessage: () => _openChat(rows[i].provider),
             onRate: rows[i].booking.status == BookingStatus.completed && !rows[i].isReviewed
                 ? () => _rateBooking(rows[i])
@@ -285,12 +305,14 @@ class _BookingCard extends StatelessWidget {
     required this.row,
     required this.onCancel,
     required this.onMessage,
+    this.onReschedule,
     this.onRate,
   });
 
   final _BookingRow row;
   final VoidCallback onCancel;
   final VoidCallback onMessage;
+  final VoidCallback? onReschedule;
   final VoidCallback? onRate;
 
   @override
@@ -384,7 +406,7 @@ class _BookingCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onMessage,
                       icon: const Icon(Icons.chat_bubble_outline, size: 17),
-                      label: const Text('Message Provider'),
+                      label: const Text('Message'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF6E6A76),
                         side: const BorderSide(color: Color(0x33000000)),
@@ -392,12 +414,27 @@ class _BookingCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  if (onReschedule != null) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onReschedule,
+                        icon: const Icon(Icons.schedule_rounded, size: 17),
+                        label: const Text('Reschedule'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF9E86E6),
+                          side: const BorderSide(color: Color(0x339E86E6)),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: onCancel,
                       icon: const Icon(Icons.event_busy, size: 17),
-                      label: const Text('Cancel Booking'),
+                      label: const Text('Cancel'),
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFFE5484D),
                         padding: const EdgeInsets.symmetric(vertical: 11),
