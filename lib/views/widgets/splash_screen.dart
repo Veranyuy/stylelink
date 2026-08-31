@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// Branded splash screen matching the StyleLink logo design.
 ///
+/// Shows for 15 seconds, then auto-advances. Tapping anywhere skips
+/// immediately.
+///
 /// Features:
-/// - Dark (#1A1A2E) background matching the logo
+/// - Dark (#0D0D1A) background matching the logo
 /// - "StyleLink" text with teal-to-orange gradient
 /// - Globe icon between "Style" and "Link"
 /// - Subtle glow effects behind the text
@@ -11,7 +16,7 @@ import 'package:flutter/material.dart';
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.onReady});
 
-  /// Called when the splash animation completes (after ~2.5s).
+  /// Called when the splash should end (after 15s or on tap).
   final VoidCallback? onReady;
 
   @override
@@ -56,14 +61,22 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    // Navigate after animation completes.
-    Future.delayed(const Duration(milliseconds: 2800), () {
+    // Auto-advance after 15 seconds.
+    _timer = Timer(const Duration(seconds: 15), () {
       if (mounted) widget.onReady?.call();
     });
   }
 
+  Timer? _timer;
+
+  void _skip() {
+    _timer?.cancel();
+    widget.onReady?.call();
+  }
+
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -72,8 +85,11 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0D0D1A),
-      body: Center(
-        child: AnimatedBuilder(
+      body: GestureDetector(
+        onTap: _skip,
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
             return Opacity(
@@ -187,9 +203,21 @@ class _SplashScreenState extends State<SplashScreen>
                   color: const Color(0xFF2EC4B6).withValues(alpha: 0.6),
                 ),
               ),
+
+              const SizedBox(height: 20),
+
+              // ── Tap to skip hint ────────────────────────
+              Text(
+                'Tap anywhere to skip',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.35),
+                ),
+              ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
