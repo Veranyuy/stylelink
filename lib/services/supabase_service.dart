@@ -633,13 +633,24 @@ class SupabaseService {
   }
 
   /// Update a booking's status (provider side).
+  ///
+  /// When transitioning from pending, also stamps responded_at for
+  /// response time analytics.
   Future<void> updateBookingStatus(
     String bookingId,
     BookingStatus status,
   ) async {
+    final payload = <String, dynamic>{'status': status.name};
+
+    // Stamp responded_at when the provider first responds to a pending booking.
+    if (status != BookingStatus.pending) {
+      payload['responded_at'] = DateTime.now().toUtc().toIso8601String();
+    }
+
     await _db
         .from('bookings')
-        .update({'status': status.name}).eq('id', bookingId);
+        .update(payload)
+        .eq('id', bookingId);
   }
 
   /// Live, ordered stream of a provider's bookings.
@@ -1421,6 +1432,40 @@ class SupabaseService {
       return (result as List<dynamic>).cast<Map<String, dynamic>>();
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Average response time in minutes for a provider within a date range.
+  Future<double> getAvgResponseTime(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_avg_response_time', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as num?)?.toDouble() ?? 0.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  /// Response rate: percentage of bookings that received a response.
+  Future<double> getResponseRate(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_response_rate', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as num?)?.toDouble() ?? 0.0;
+    } catch (_) {
+      return 0.0;
     }
   }
 }

@@ -15,6 +15,9 @@ class Booking {
   final String? notes;
   final DateTime? createdAt;
 
+  /// When the provider first responded (accepted/rejected/cancelled).
+  final DateTime? respondedAt;
+
   /// Service-tracker fields (may be null for legacy bookings).
   final String? verificationPin;
   final double? arrivalLat;
@@ -33,6 +36,7 @@ class Booking {
     this.totalPriceFcfa = 0,
     this.notes,
     this.createdAt,
+    this.respondedAt,
     this.verificationPin,
     this.arrivalLat,
     this.arrivalLng,
@@ -55,6 +59,7 @@ class Booking {
       totalPriceFcfa: _asInt(json['total_price_fcfa']),
       notes: json['notes'] as String?,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+      respondedAt: DateTime.tryParse(json['responded_at']?.toString() ?? ''),
       verificationPin: json['verification_pin']?.toString(),
       arrivalLat: _asDouble(json['arrival_lat']),
       arrivalLng: _asDouble(json['arrival_lng']),
@@ -74,8 +79,9 @@ class Booking {
         'total_price_fcfa': totalPriceFcfa,
         'notes': notes,
         if (verificationPin != null) 'verification_pin': verificationPin,
-        if (arrivedAt != null) 'arrived_at': arrivedAt!.toIso8601String(),
-        if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
+    if (respondedAt != null) 'responded_at': respondedAt!.toIso8601String(),
+    if (arrivedAt != null) 'arrived_at': arrivedAt!.toIso8601String(),
+    if (startedAt != null) 'started_at': startedAt!.toIso8601String(),
         if (completedAt != null)
           'completed_at': completedAt!.toIso8601String(),
       };  bool get isUpcoming =>

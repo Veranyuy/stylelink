@@ -28,6 +28,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   double _conversionRate = 0;
   int _completedBookings = 0;
   int _totalBookings = 0;
+  double _avgResponseTime = 0; // minutes
+  double _responseRate = 0; // percentage
   List<Map<String, dynamic>> _dailyViews = [];
   List<Map<String, dynamic>> _topQueries = [];
 
@@ -95,6 +97,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       supabase.getDailyViews(pid, start: range.start, end: range.end),
       supabase.getTopSearchQueries(pid),
       _countBookings(pid, range),
+      supabase.getAvgResponseTime(pid, start: range.start, end: range.end),
+      supabase.getResponseRate(pid, start: range.start, end: range.end),
     ]);
 
     if (!mounted) return;
@@ -106,6 +110,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       _topQueries = results[4] as List<Map<String, dynamic>>;
       _completedBookings = (results[5] as (int, int)).$1;
       _totalBookings = (results[5] as (int, int)).$2;
+      _avgResponseTime = results[6] as double;
+      _responseRate = results[7] as double;
     });
   }
 
@@ -222,6 +228,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _AnalyticCard(
+              icon: Icons.timer_outlined,
+              iconColor: const Color(0xFFFF9F45),
+              label: 'Avg Response Time',
+              value: _avgResponseTime == 0
+                  ? '—'
+                  : _formatDuration(_avgResponseTime),
+              sub: _avgResponseTime == 0 ? 'No responses yet' : 'Minutes to respond',
+            ),
+            const SizedBox(width: 10),
+            _AnalyticCard(
+              icon: Icons.quickreply_outlined,
+              iconColor: const Color(0xFF4A90E2),
+              label: 'Response Rate',
+              value: '${_responseRate.toStringAsFixed(1)}%',
+              sub: 'Bookings responded to',
+            ),
+          ],
+        ),
 
         const SizedBox(height: 22),
 
@@ -285,6 +313,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       case _Period.allTime:
         return 'All time';
     }
+  }
+
+  String _formatDuration(double minutes) {
+    if (minutes < 1) return '<1 min';
+    if (minutes < 60) return '${minutes.round()} min';
+    final h = (minutes / 60).floor();
+    final m = (minutes % 60).round();
+    return m > 0 ? '${h}h ${m}m' : '${h}h';
   }
 }
 
