@@ -172,6 +172,49 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
+  Future<void> _rejectBooking(Booking booking) async {
+    // Look up the client name for the dialog.
+    String? clientName;
+    try {
+      final profiles = await supabase.fetchProfilesByIds([booking.clientId]);
+      clientName = profiles.isNotEmpty ? profiles.first.fullName : null;
+    } catch (_) {
+      // Ignore — dialog still works without a name.
+    }
+    if (!mounted) return;
+
+    final result = await showDialog<RejectResult>(
+      context: context,
+      builder: (context) => _RejectDialog(clientName: clientName),
+    );
+    if (result == null || !mounted) return;
+
+    try {
+      await supabase.updateBookingStatus(booking.id, BookingStatus.rejected);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.reason.isNotEmpty
+                  ? 'Booking rejected: ${result.reason}'
+                  : 'Booking rejected / Réservation refusée',
+            ),
+            backgroundColor: const Color(0xFFE5484D),
+          ),
+        );
+        _refresh();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not reject booking: $e'),
+          backgroundColor: const Color(0xFFB3261E),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -284,6 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           rows: rows,
           onAccept: (b) => _setStatus(b, BookingStatus.confirmed),
           onCancel: (b) => _setStatus(b, BookingStatus.cancelled),
+          onReject: (b) => _rejectBooking(b),
           onMessage: _openChat,
           onRefresh: _refresh,
         );
@@ -298,6 +342,7 @@ class _DashboardBody extends StatelessWidget {
     required this.rows,
     required this.onAccept,
     required this.onCancel,
+    required this.onReject,
     required this.onMessage,
     required this.onRefresh,
   });
@@ -305,6 +350,7 @@ class _DashboardBody extends StatelessWidget {
   final List<_EnrichedBooking> rows;
   final ValueChanged<Booking> onAccept;
   final ValueChanged<Booking> onCancel;
+  final ValueChanged<Booking> onReject;
   final ValueChanged<_EnrichedBooking> onMessage;
   final VoidCallback onRefresh;
 
@@ -360,6 +406,7 @@ class _DashboardBody extends StatelessWidget {
                 row: row,
                 onAccept: () => onAccept(row.booking),
                 onCancel: () => onCancel(row.booking),
+                onReject: () => onReject(row.booking),
                 onMessage: () => onMessage(row),
               ),
             // Confirmed / arrived / in-progress / completed: tracker card.
@@ -438,12 +485,14 @@ class _PendingBookingCard extends StatelessWidget {
     required this.row,
     required this.onAccept,
     required this.onCancel,
+    required this.onReject,
     required this.onMessage,
   });
 
   final _EnrichedBooking row;
   final VoidCallback onAccept;
   final VoidCallback onCancel;
+  final VoidCallback onReject;
   final VoidCallback onMessage;
 
   @override
@@ -541,10 +590,22 @@ class _PendingBookingCard extends StatelessWidget {
                       backgroundColor: const Color(0xFFF4665C),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Accept / Accepté'),
+                    child: const Text('Accept / Accepter'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFE5484D),
+                      side: const BorderSide(color: Color(0x33E5484D)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Reject / Refuser'),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: onCancel,
@@ -553,7 +614,7 @@ class _PendingBookingCard extends StatelessWidget {
                       side: const BorderSide(color: Color(0x33000000)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
-                    child: const Text('Cancel / Annuler'),
+                    child: const Text('Cancel'),
                   ),
                 ),
               ],
@@ -652,4 +713,135 @@ class _Avatar extends StatelessWidget {
           ),
         ),
       );
+}
+
+// =============================================================================
+// Reject dialog with optional reason
+// =============================================================================
+
+class RejectResult {
+  const RejectResult({this.reason = ''});
+  final String reason;
+}
+
+class _RejectDialog extends StatefulWidget {
+  const _RejectDialog({this.clientName});
+  final String? clientName;
+
+  @override
+  State<_RejectDialog> createState() => _RejectDialogState();
+}
+
+class _RejectDialogState extends State<_RejectDialog> {
+  final _reasonCtrl = TextEditingController();
+  String? _selectedReason;
+
+  static const _reasons = [
+    'Schedule conflict / Conflit d\'agenda',
+    'Fully booked / Complet',
+    'Service unavailable / Service indisponible',
+    'Too far / Trop éloigné',
+    'Other / Autre',
+  ];
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final reason = _selectedReason == 'Other / Autre'
+        ? _reasonCtrl.text.trim()
+        : (_selectedReason ?? '');
+    Navigator.of(context).pop(RejectResult(reason: reason));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Row(
+        children: [
+          Icon(Icons.cancel_outlined, color: Color(0xFFE5484D), size: 24),
+          SizedBox(width: 10),
+          Text('Reject Booking'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.clientName != null
+                ? 'Reject booking from ${widget.clientName}?'
+                : 'Reject this booking request?',
+            style: const TextStyle(fontSize: 13.5, color: Color(0xFF6E6A76)),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Reason (optional) / Raison (optionnel)',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _reasons.map((r) {
+              final selected = _selectedReason == r;
+              return ChoiceChip(
+                label: Text(
+                  r,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: selected ? Colors.white : const Color(0xFF6E6A76),
+                  ),
+                ),
+                selected: selected,
+                selectedColor: const Color(0xFFE5484D),
+                backgroundColor: Colors.grey.shade100,
+                onSelected: (_) => setState(() => _selectedReason = r),
+              );
+            }).toList(),
+          ),
+          if (_selectedReason == 'Other / Autre') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _reasonCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Type a reason… / Tapez une raison…',
+                hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade400),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade200),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFE5484D),
+          ),
+          child: const Text('Reject / Refuser'),
+        ),
+      ],
+    );
+  }
 }
