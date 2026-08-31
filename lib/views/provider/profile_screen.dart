@@ -8,6 +8,7 @@ import '../../models/provider.dart';
 import '../../providers/language_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../widgets/custom_avatar.dart';
+import '../widgets/edit_profile_screen.dart';
 import 'business_screen.dart';
 import 'service_manager_screen.dart';
 
@@ -83,6 +84,16 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
     }
+  }
+
+  Future<void> _openEditProfile() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const EditProfileScreen(),
+      ),
+    );
+    if (mounted) _refresh(); // re-fetch profile on return
   }
 
   Future<void> _confirmDeleteAccount() async {
@@ -226,6 +237,15 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   subtitle: context.t('working_hours_sub'),
                   trailing: '🕐',
                   onTap: _openBusiness,
+                ),
+                const SizedBox(height: 10),
+                _ManagementCard(
+                  icon: Icons.edit_outlined,
+                  iconColor: const Color(0xFF9E86E6),
+                  title: context.lang.isFrench ? 'Modifier le profil' : 'Edit Profile',
+                  subtitle: context.lang.isFrench ? 'Nom, téléphone, ville' : 'Name, phone, city',
+                  trailing: '✏️',
+                  onTap: _openEditProfile,
                 ),
                 const SizedBox(height: 10),
                 _ManagementCard(

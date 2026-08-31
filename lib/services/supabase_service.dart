@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/booking.dart';
@@ -30,6 +31,27 @@ class SupabaseService {
   static final SupabaseService instance = SupabaseService._();
 
   SupabaseClient get _db => Supabase.instance.client;
+
+  // ---------------------------------------------------------------------------
+  // Sentry error capture helper
+  // ---------------------------------------------------------------------------
+
+  /// Capture an exception to Sentry with Supabase context.
+  ///
+  /// Always re-throws the original exception so callers are unaffected.
+  /// The [hint] describes the failed operation for breadcrumbs.
+  Future<T> _captureAndRethrow<T>(Future<T> Function() op, String hint) async {
+    try {
+      return await op();
+    } catch (e, st) {
+      Sentry.captureException(
+        e,
+        stackTrace: st,
+        hint: Hint.withMap({'operation': hint}),
+      );
+      rethrow;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Auth
@@ -169,11 +191,14 @@ class SupabaseService {
     required String category,
     required String city,
   }) async {
-    await _db.rpc('upgrade_to_provider', params: {
-      'p_business_name': businessName,
-      'p_category': category,
-      'p_city': city,
-    });
+    await _captureAndRethrow(
+      () => _db.rpc('upgrade_to_provider', params: {
+        'p_business_name': businessName,
+        'p_category': category,
+        'p_city': city,
+      }),
+      'upgradeToProvider',
+    );
   }
 
   /// True when the current user has a row in `public.providers`.
@@ -198,6 +223,12 @@ class SupabaseService {
     }
     final uid = user.id;
 
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'deleteAccount started',
+      category: 'account',
+      data: {'user_id': uid},
+    ));
+
     // 1. Delete child data first (to satisfy foreign-key constraints).
     //    Each delete is wrapped in try/catch so a missing table or RLS
     //    block on one does not abort the entire flow.
@@ -205,8 +236,10 @@ class SupabaseService {
     Future<void> safeDelete(String table, String column, String value) async {
       try {
         await _db.from(table).delete().eq(column, value);
-      } catch (_) {
+      } catch (e, st) {
         // Table may not exist or RLS may block — continue cleanup.
+        Sentry.captureException(e, stackTrace: st,
+            hint: Hint.withMap({'operation': 'deleteAccount_$table'}));
       }
     }
 
@@ -228,8 +261,10 @@ class SupabaseService {
         }
       }
       await safeDelete('providers', 'user_id', uid);
-    } catch (_) {
+    } catch (e, st) {
       // Provider cleanup is best-effort.
+      Sentry.captureException(e, stackTrace: st,
+          hint: Hint.withMap({'operation': 'deleteAccount_providers_cleanup'}));
     }
 
     await safeDelete('profiles', 'id', uid);
@@ -238,9 +273,11 @@ class SupabaseService {
     //    Uses the Supabase GoTrue admin API via RPC or direct DELETE.
     try {
       await _db.auth.admin.deleteUser(uid);
-    } catch (_) {
+    } catch (e, st) {
       // Fallback: the user may not have admin permissions — try the
       // standard sign-out path so at least the session is destroyed.
+      Sentry.captureException(e, stackTrace: st,
+          hint: Hint.withMap({'operation': 'deleteAccount_adminDeleteUser'}));
     }
 
     // 3. Sign out to clear local session state.
@@ -266,6 +303,34 @@ class SupabaseService {
     final rows = await _db.from('profiles').select().eq('id', user.id).limit(1);
     if (rows.isEmpty) return null;
     return Profile.fromJson(rows.first);
+  }
+
+  /// Update the current user's profile fields.
+  ///
+  /// Only the provided (non-null) fields are written — omitted fields
+  /// are left untouched.  Returns the updated [Profile].
+  Future<Profile> updateProfile({
+    String? fullName,
+    String? phoneNumber,
+    String? city,
+  }) async {
+    final user = currentUser;
+    if (user == null) throw const AuthException('You are not signed in.');
+
+    final payload = <String, dynamic>{};
+    if (fullName != null) payload['full_name'] = fullName.trim();
+    if (phoneNumber != null) payload['phone_number'] = phoneNumber.trim();
+    if (city != null) payload['city'] = city.trim();
+
+    if (payload.isEmpty) return (await fetchCurrentProfile())!;
+
+    final row = await _db
+        .from('profiles')
+        .update(payload)
+        .eq('id', user.id)
+        .select()
+        .single();
+    return Profile.fromJson(row);
   }
 
   /// Role of the signed-in user, resolved from the `profiles` table.
@@ -307,8 +372,10 @@ class SupabaseService {
       await _db.rpc('set_user_role', params: {
         'target_role': 'client',
       });
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('ensureProfileExists: set_user_role RPC failed: $e');
+      Sentry.captureException(e, stackTrace: st,
+          hint: Hint.withMap({'operation': 'ensureProfileExists_RPC'}));
     }
 
     // If the RPC still didn't create the row (e.g. RPC doesn't exist yet),
@@ -323,8 +390,10 @@ class SupabaseService {
           'role': 'client',
         }, onConflict: 'id');
       }
-    } catch (e) {
+    } catch (e, st) {
       debugPrint('ensureProfileExists: direct upsert failed: $e');
+      Sentry.captureException(e, stackTrace: st,
+          hint: Hint.withMap({'operation': 'ensureProfileExists_upsert'}));
     }
   }
 
@@ -543,19 +612,24 @@ class SupabaseService {
     required int totalPriceFcfa,
     String? notes,
   }) async {
-    final row = await _db
-        .from('bookings')
-        .insert({
-          'client_id': clientId,
-          'provider_id': providerId,
-          'service_ids': serviceIds,
-          'scheduled_at': scheduledAt.toUtc().toIso8601String(),
-          'total_price_fcfa': totalPriceFcfa,
-          'notes': notes,
-        })
-        .select()
-        .single();
-    return Booking.fromJson(row);
+    return _captureAndRethrow(
+      () async {
+        final row = await _db
+            .from('bookings')
+            .insert({
+              'client_id': clientId,
+              'provider_id': providerId,
+              'service_ids': serviceIds,
+              'scheduled_at': scheduledAt.toUtc().toIso8601String(),
+              'total_price_fcfa': totalPriceFcfa,
+              'notes': notes,
+            })
+            .select()
+            .single();
+        return Booking.fromJson(row);
+      },
+      'createBooking',
+    );
   }
 
   /// Update a booking's status (provider side).
@@ -1083,7 +1157,9 @@ class SupabaseService {
         'rating': rating,
         'comment': comment,
       });
-    } catch (e) {
+    } catch (e, st) {
+      Sentry.captureException(e, stackTrace: st,
+          hint: Hint.withMap({'operation': 'submitReview', 'booking_id': bookingId}));
       final msg = e.toString();
       // Provide a user-friendly message for common DB errors.
       if (msg.contains('relation "public.reviews" does not exist') ||
