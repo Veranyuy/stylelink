@@ -88,7 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D1A),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -102,7 +102,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0x99FFFFFF),
+                    color: Color(0xFF6B6B7B),
                   ),
                 ),
               ),
@@ -132,7 +132,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         borderRadius: BorderRadius.circular(4),
                         color: _page == i
                             ? const Color(0xFF2EC4B6)
-                            : const Color(0x33FFFFFF),
+                            : const Color(0xFFD9D5DE),
                       ),
                     ),
                 ],
@@ -147,12 +147,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: FilledButton(
                   onPressed: _next,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2EC4B6),
+                    backgroundColor: const Color(0xFFFF6B35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 2,
-                    shadowColor: const Color(0x442EC4B6),
+                    shadowColor: const Color(0x44FF6B35),
                   ),
                   child: Text(
                     _page == _pages.length - 1 ? 'Get Started' : 'Next',
@@ -190,7 +190,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: data.gradient.first.withValues(alpha: 0.4),
+                  color: data.gradient.first.withAlpha(60),
                   blurRadius: 50,
                   spreadRadius: 5,
                   offset: const Offset(0, 16),
@@ -210,7 +210,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: Colors.white,
+              color: Color(0xFF1A1A2E),
               letterSpacing: -0.3,
             ),
           ),
@@ -218,10 +218,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             data.subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14.5,
               height: 1.55,
-              color: Colors.white.withValues(alpha: 0.7),
+              color: Color(0xFF6B6B7B),
             ),
           ),
           const Spacer(flex: 3),
