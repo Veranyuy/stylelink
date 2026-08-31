@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models/profile.dart';
@@ -14,6 +16,7 @@ import 'views/auth/auth_screen.dart';
 import 'views/auth/onboarding_screen.dart';
 import 'views/client/client_shell.dart';
 import 'views/provider/provider_shell.dart';
+import 'views/widgets/splash_screen.dart';
 
 /// StyleLink project credentials. The anon key doubles as the publishable
 /// key in the current Supabase API — safe for client builds because
@@ -22,8 +25,44 @@ const String supabaseUrl = 'https://mzmumrggvwzwrootgcie.supabase.co';
 const String supabasePublishableKey =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16bXVtcmdndnd6d3Jvb3RnY2llIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4NzEwMDAsImV4cCI6MjEwMjQ0NzAwMH0.b73QSTnUALpw6Ffa-o-B86kSGcM2D5hWX2GCV6izJog';
 
+/// Sentry DSN — leave empty to disable crash reporting (e.g. during local dev).
+/// Set via `--dart-define=SENTRY_DSN=https://...` at build time, or hardcode
+/// for the production build.
+const String sentryDsn = String.fromEnvironment(
+  'SENTRY_DSN',
+  defaultValue: '',
+);
+
+/// Current deployment environment for Sentry release tracking.
+const String sentryEnvironment = String.fromEnvironment(
+  'SENTRY_ENVIRONMENT',
+  defaultValue: kDebugMode ? 'development' : 'production',
+);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Capture Flutter framework errors (render, layout, paint).
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    if (sentryDsn.isNotEmpty) {
+      Sentry.captureException(
+        details.exception,
+        stackTrace: details.stack,
+      );
+    }
+  };
+
+  // Capture errors from the Dart async zone (uncaught Futures).
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    if (sentryDsn.isNotEmpty) {
+      Sentry.captureException(
+        error,
+        stackTrace: stackTrace,
+      );
+    }
+    return true;
+  };
 
   // Initialize Firebase (required for FCM).
   try {
@@ -44,7 +83,23 @@ Future<void> main() async {
   // Initialize local push notifications.
   await NotificationService.instance.init();
 
-  runApp(const StyleLinkApp());
+  // Wrap the entire app in Sentry so unhandled exceptions are captured.
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.environment = sentryEnvironment;
+        options.tracesSampleRate = 0.2; // 20% of transactions
+        options.attachScreenshot = true;
+        options.sendDefaultPii = false; // respect user privacy
+        options.reportPackages = true;
+      },
+      appRunner: () => runApp(const StyleLinkApp()),
+    );
+  } else {
+    debugPrint('Sentry disabled — no DSN configured.');
+    runApp(const StyleLinkApp());
+  }
 }
 
 /// StyleLink visual identity: soft off-white surfaces, coral seed color,
@@ -301,6 +356,7 @@ class _OnboardingOrAuthGate extends StatefulWidget {
 
 class _OnboardingOrAuthGateState extends State<_OnboardingOrAuthGate> {
   bool? _showOnboarding;
+  bool _splashDone = false;
 
   @override
   void initState() {
@@ -315,9 +371,22 @@ class _OnboardingOrAuthGateState extends State<_OnboardingOrAuthGate> {
 
   @override
   Widget build(BuildContext context) {
+    // Show branded splash screen while loading.
+    if (!_splashDone) {
+      return SplashScreen(
+        onReady: () {
+          if (mounted) setState(() => _splashDone = true);
+        },
+      );
+    }
     if (_showOnboarding == null) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFF0D0D1A),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF2EC4B6),
+          ),
+        ),
       );
     }
     if (_showOnboarding!) {

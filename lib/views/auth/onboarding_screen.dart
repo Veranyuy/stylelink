@@ -35,30 +35,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     _OnboardingPageData(
       icon: Icons.search_rounded,
-      iconColor: Color(0xFFF4665C),
       title: 'Discover Stylists',
       subtitle:
           'Browse top-rated barbers, braiders, and makeup artists in your city.\n\n'
           'Trouvez les meilleurs coiffeurs et maquilleurs dans votre ville.',
-      gradient: [Color(0xFFFF8B7B), Color(0xFFFFB8A1)],
+      gradient: [Color(0xFF2EC4B6), Color(0xFF3AAFA9)], // teal
     ),
     _OnboardingPageData(
       icon: Icons.calendar_today_rounded,
-      iconColor: Color(0xFF9E86E6),
       title: 'Book in Seconds',
       subtitle:
           'Choose your services, pick a time, and book — all in a few taps.\n\n'
           'Choisissez vos services, sélectionnez un horaire et réservez.',
-      gradient: [Color(0xFF9E86E6), Color(0xFFC4B8F5)],
+      gradient: [Color(0xFFFF6B35), Color(0xFFFFB347)], // orange
     ),
     _OnboardingPageData(
       icon: Icons.storefront_rounded,
-      iconColor: Color(0xFF3FBF7F),
       title: 'Grow Your Business',
       subtitle:
           'List your salon, manage your schedule, and track your earnings.\n\n'
           'Inscrivez votre salon, gérez vos horaires et suivez vos revenus.',
-      gradient: [Color(0xFF3FBF7F), Color(0xFF8AE0B8)],
+      gradient: [Color(0xFF2EC4B6), Color(0xFFFF6B35)], // teal → orange
     ),
   ];
 
@@ -91,6 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0D0D1A),
       body: SafeArea(
         child: Column(
           children: [
@@ -104,7 +102,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF6E6A76),
+                    color: Color(0x99FFFFFF),
                   ),
                 ),
               ),
@@ -133,8 +131,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4),
                         color: _page == i
-                            ? const Color(0xFFF4665C)
-                            : const Color(0xFFD9D5DE),
+                            ? const Color(0xFF2EC4B6)
+                            : const Color(0x33FFFFFF),
                       ),
                     ),
                 ],
@@ -149,18 +147,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: FilledButton(
                   onPressed: _next,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFF4665C),
+                    backgroundColor: const Color(0xFF2EC4B6),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 2,
-                    shadowColor: const Color(0x33F4665C),
+                    shadowColor: const Color(0x442EC4B6),
                   ),
                   child: Text(
                     _page == _pages.length - 1 ? 'Get Started' : 'Next',
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -178,7 +177,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Column(
         children: [
           const Spacer(flex: 2),
-          // Illustration circle.
+          // Illustration circle with glow.
           Container(
             width: 180,
             height: 180,
@@ -191,8 +190,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: data.gradient.first.withValues(alpha: 0.3),
-                  blurRadius: 40,
+                  color: data.gradient.first.withValues(alpha: 0.4),
+                  blurRadius: 50,
+                  spreadRadius: 5,
                   offset: const Offset(0, 16),
                 ),
               ],
@@ -210,7 +210,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF2A2730),
+              color: Colors.white,
               letterSpacing: -0.3,
             ),
           ),
@@ -218,10 +218,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             data.subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14.5,
               height: 1.55,
-              color: Color(0xFF6E6A76),
+              color: Colors.white.withValues(alpha: 0.7),
             ),
           ),
           const Spacer(flex: 3),
@@ -234,14 +234,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 class _OnboardingPageData {
   const _OnboardingPageData({
     required this.icon,
-    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.gradient,
   });
 
   final IconData icon;
-  final Color iconColor;
   final String title;
   final String subtitle;
   final List<Color> gradient;
