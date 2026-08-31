@@ -1257,5 +1257,132 @@ class SupabaseService {
         .order('created_at', ascending: false)
         .limit(limit);
   }
+
+  // ---------------------------------------------------------------------------
+  // Provider Analytics
+  // ---------------------------------------------------------------------------
+
+  /// Record a profile view.  Deduplicates per client+provider+day server-side
+  /// via the UNIQUE constraint on (provider_id, viewer_id, day).
+  Future<void> recordProfileView(String providerId) async {
+    final userId = currentUser?.id;
+    try {
+      await _db.from('profile_views').upsert({
+        'provider_id': providerId,
+        'viewer_id': userId,
+        'viewed_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'provider_id,viewer_id,viewed_at');
+    } catch (_) {
+      // Analytics should never block the UX.
+    }
+  }
+
+  /// Record a search impression for one or more provider IDs.
+  Future<void> recordSearchImpressions({
+    required List<String> providerIds,
+    String? query,
+    String? city,
+    String? category,
+  }) async {
+    if (providerIds.isEmpty) return;
+    try {
+      final rows = providerIds
+          .map((id) => {
+                'provider_id': id,
+                'query': query,
+                'city': city,
+                'category': category,
+                'shown_at': DateTime.now().toUtc().toIso8601String(),
+              })
+          .toList();
+      await _db.from('search_impressions').insert(rows);
+    } catch (_) {
+      // Analytics should never block the UX.
+    }
+  }
+
+  /// Total profile views for a provider within an optional date range.
+  Future<int> getProfileViewCount(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_profile_view_count', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Total search impressions for a provider within an optional date range.
+  Future<int> getSearchImpressionCount(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_search_impression_count', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as num?)?.toInt() ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Booking conversion rate (completed bookings / views) as a percentage.
+  Future<double> getConversionRate(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_conversion_rate', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as num?)?.toDouble() ?? 0.0;
+    } catch (_) {
+      return 0.0;
+    }
+  }
+
+  /// Daily profile views as [{day: "2025-01-15", count: 12}, ...].
+  Future<List<Map<String, dynamic>>> getDailyViews(String providerId, {
+    DateTime? start,
+    DateTime? end,
+  }) async {
+    try {
+      final result = await _db.rpc('get_daily_views', params: {
+        'p_provider_id': providerId,
+        'p_start': start?.toUtc().toIso8601String(),
+        'p_end': end?.toUtc().toIso8601String(),
+      });
+      return (result as List<dynamic>).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Top search queries that led to impressions for a provider.
+  Future<List<Map<String, dynamic>>> getTopSearchQueries(
+    String providerId, {
+    int limit = 10,
+  }) async {
+    try {
+      final result = await _db.rpc('get_top_search_queries', params: {
+        'p_provider_id': providerId,
+        'p_limit': limit,
+      });
+      return (result as List<dynamic>).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
 }
 

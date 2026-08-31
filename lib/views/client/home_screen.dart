@@ -136,7 +136,18 @@ class _HomeScreenState extends State<HomeScreen> {
         city: _cityFilter,
         maxPrice: _maxPrice,
         limit: 30,
-      );
+      ).then((providers) {
+        // Record search impressions for analytics (fire-and-forget).
+        if (providers.isNotEmpty) {
+          service.recordSearchImpressions(
+            providerIds: providers.map((p) => p.id).toList(),
+            query: (_query == null || _query!.isEmpty) ? null : _query,
+            city: _cityFilter,
+            category: (category ?? '').isEmpty ? null : category,
+          );
+        }
+        return providers;
+      });
     });
     _fetchAvatars();
   }

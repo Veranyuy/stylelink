@@ -50,7 +50,13 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _providerFuture = supabase.fetchProviderById(widget.providerId);
+    _providerFuture = supabase.fetchProviderById(widget.providerId).then((p) {
+      // Record profile view for analytics (fire-and-forget).
+      if (p != null) {
+        SupabaseService.instance.recordProfileView(p.id);
+      }
+      return p;
+    });
     _servicesFuture =
         supabase.fetchServicesForProvider(widget.providerId).then((services) {
       _loaded = services;

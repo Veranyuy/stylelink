@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../providers/language_provider.dart';
+import 'analytics_screen.dart';
 import 'calendar_screen.dart';
 import 'earnings_screen.dart';
 import 'profile_screen.dart';
@@ -32,6 +33,7 @@ class _ProviderShellState extends State<ProviderShell> {
       const CalendarScreen(),
       const ServiceManagerScreen(),
       const EarningsScreen(),
+      const AnalyticsScreen(),
       const ProviderProfileScreen(),
     ];
 
@@ -97,6 +99,12 @@ class _ProviderShellState extends State<ProviderShell> {
             selectedIcon:
                 const Icon(Icons.trending_up, color: Color(0xFFF4665C)),
             label: t('earnings'),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.analytics_outlined),
+            selectedIcon:
+                const Icon(Icons.analytics, color: Color(0xFF9E86E6)),
+            label: t('analytics'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.person_outline),
