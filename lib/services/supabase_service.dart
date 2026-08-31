@@ -825,6 +825,16 @@ class SupabaseService {
         .map((rows) => rows.map(Message.fromJson).toList());
   }
 
+  /// Live stream of all of a provider's messages (for provider Messages tab).
+  Stream<List<Message>> watchMessagesForProvider(String providerId) {
+    return _db
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('provider_id', providerId)
+        .order('created_at')
+        .map((rows) => rows.map(Message.fromJson).toList());
+  }
+
   /// Send one message; the sender must be one of the two thread
   /// participants (enforced by RLS too).
   Future<Message> sendMessage({
@@ -844,6 +854,35 @@ class SupabaseService {
         .select()
         .single();
     return Message.fromJson(row);
+  }
+
+  /// In-memory timestamp of the last time the user viewed messages.
+  /// Reset to now on app start; updated when Messages tab is opened.
+  static DateTime _lastMessagesSeen = DateTime.now().toUtc();
+
+  /// Count unread messages for the current user.
+  ///
+  /// Counts messages where sender_id != current user and
+  /// created_at > _lastMessagesSeen.
+  Future<int> getUnreadMessageCount() async {
+    final user = currentUser;
+    if (user == null) return 0;
+
+    try {
+      final rows = await _db
+          .from('messages')
+          .select('id')
+          .neq('sender_id', user.id)
+          .gt('created_at', _lastMessagesSeen.toIso8601String());
+      return rows.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Mark all messages as read by updating the last-seen timestamp.
+  void markMessagesAsRead() {
+    _lastMessagesSeen = DateTime.now().toUtc();
   }
 
   // ---------------------------------------------------------------------------

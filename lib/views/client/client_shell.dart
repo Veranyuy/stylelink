@@ -34,6 +34,7 @@ class ClientShell extends StatefulWidget {
 class _ClientShellState extends State<ClientShell> {
   int _index = 0;
   bool _isProvider = false;
+  int _unreadCount = 0;
 
   void _openBookingsTab() => setState(() => _index = 1);
 
@@ -41,6 +42,12 @@ class _ClientShellState extends State<ClientShell> {
   void initState() {
     super.initState();
     _checkProviderRole();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await SupabaseService.instance.getUnreadMessageCount();
+    if (mounted) setState(() => _unreadCount = count);
   }
 
   Future<void> _checkProviderRole() async {
@@ -108,7 +115,16 @@ class _ClientShellState extends State<ClientShell> {
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          setState(() => _index = i);
+          if (i == 2) {
+            // Opening Messages tab — mark as read.
+            SupabaseService.instance.markMessagesAsRead();
+            setState(() => _unreadCount = 0);
+          } else {
+            _loadUnreadCount();
+          }
+        },
         backgroundColor: surface,
         indicatorColor: const Color(0x22F4665C),
         destinations: [
@@ -125,7 +141,20 @@ class _ClientShellState extends State<ClientShell> {
             label: t('bookings'),
           ),
           NavigationDestination(
-            icon: const Icon(Icons.chat_bubble_outline),
+            icon: _unreadCount > 0
+                ? Badge(
+                    label: Text(
+                      _unreadCount > 99 ? '99+' : '$_unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    backgroundColor: const Color(0xFFF4665C),
+                    child: const Icon(Icons.chat_bubble_outline),
+                  )
+                : const Icon(Icons.chat_bubble_outline),
             selectedIcon:
                 const Icon(Icons.chat_bubble, color: Color(0xFFF4665C)),
             label: t('messages'),

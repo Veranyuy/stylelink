@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../providers/language_provider.dart';
+import '../../services/supabase_service.dart';
 import 'analytics_screen.dart';
 import 'calendar_screen.dart';
 import 'earnings_screen.dart';
 import 'profile_screen.dart';
+import 'provider_messages_screen.dart';
 import 'service_manager_screen.dart';
 
 /// Logged-in provider shell: bottom navigation across Schedule, Services,
@@ -23,6 +25,18 @@ class ProviderShell extends StatefulWidget {
 
 class _ProviderShellState extends State<ProviderShell> {
   int _index = 0;
+  int _unreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final count = await SupabaseService.instance.getUnreadMessageCount();
+    if (mounted) setState(() => _unreadCount = count);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +46,7 @@ class _ProviderShellState extends State<ProviderShell> {
     final pages = <Widget>[
       const CalendarScreen(),
       const ServiceManagerScreen(),
+      const ProviderMessagesScreen(),
       const EarningsScreen(),
       const AnalyticsScreen(),
       const ProviderProfileScreen(),
@@ -78,7 +93,16 @@ class _ProviderShellState extends State<ProviderShell> {
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          setState(() => _index = i);
+          if (i == 2) {
+            // Opening Messages tab — mark as read.
+            SupabaseService.instance.markMessagesAsRead();
+            setState(() => _unreadCount = 0);
+          } else {
+            _loadUnreadCount();
+          }
+        },
         backgroundColor: surface,
         indicatorColor: const Color(0x22F4665C),
         destinations: [
@@ -93,6 +117,25 @@ class _ProviderShellState extends State<ProviderShell> {
             selectedIcon:
                 const Icon(Icons.content_cut, color: Color(0xFFF4665C)),
             label: t('services'),
+          ),
+          NavigationDestination(
+            icon: _unreadCount > 0
+                ? Badge(
+                    label: Text(
+                      _unreadCount > 99 ? '99+' : '$_unreadCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    backgroundColor: const Color(0xFFF4665C),
+                    child: const Icon(Icons.chat_bubble_outline),
+                  )
+                : const Icon(Icons.chat_bubble_outline),
+            selectedIcon:
+                const Icon(Icons.chat_bubble, color: Color(0xFFF4665C)),
+            label: t('messages'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.trending_up_outlined),
