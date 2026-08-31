@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/booking.dart';
@@ -867,6 +868,35 @@ class SupabaseService {
     return Message.fromJson(row);
   }
 
+  // ---------------------------------------------------------------------------
+  // Notification Preferences
+  // ---------------------------------------------------------------------------
+
+  /// Get a notification preference. Defaults to true (enabled).
+  Future<bool> getNotificationPref(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(key) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Set a notification preference.
+  Future<void> setNotificationPref(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {
+      // Best effort.
+    }
+  }
+
+  /// Check if notifications are enabled for a specific category.
+  Future<bool> isNotificationEnabled(String category) async {
+    return getNotificationPref(category);
+  }
+
   /// In-memory timestamp of the last time the user viewed messages.
   /// Reset to now on app start; updated when Messages tab is opened.
   static DateTime _lastMessagesSeen = DateTime.now().toUtc();
@@ -1277,12 +1307,8 @@ class SupabaseService {
       }
       rethrow;
     }
-    // Notify the provider that a new review was submitted.
-    try {
-      NotificationService.instance.notifyNewReview(providerId);
-    } catch (_) {
-      // Notification failure should not block the review flow.
-    }
+    // Notify the provider that a new review was submitted (fire-and-forget).
+    NotificationService.instance.notifyNewReview(providerId);
   }
 
   /// Check if a booking has already been reviewed.

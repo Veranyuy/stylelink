@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/booking.dart';
@@ -319,29 +320,37 @@ class NotificationService {
     }
   }
 
-  void _notifyClientTransition(BookingStatus status, String bookingId) {
+  Future<void> _notifyClientTransition(BookingStatus status, String bookingId) async {
     String? title;
     String? body;
+    String prefKey;
 
     switch (status) {
       case BookingStatus.confirmed:
         title = 'Booking Confirmed! / Réservation confirmée !';
         body = 'Your stylist has accepted the request.';
+        prefKey = 'notif_booking_updates';
       case BookingStatus.arrived:
         title = 'Stylist Arrived! / Le prestataire est arrivé !';
         body = 'Your stylist has logged their GPS arrival.';
+        prefKey = 'notif_booking_updates';
       case BookingStatus.inProgress:
         title = 'Session Started / Séance commencée';
         body = 'Your PIN was verified. Enjoy your service!';
+        prefKey = 'notif_booking_updates';
       case BookingStatus.completed:
         title = 'Service Complete! / Service terminé !';
         body = 'Tap to rate your experience.';
+        prefKey = 'notif_booking_updates';
       case BookingStatus.cancelled:
         title = 'Booking Cancelled / Réservation annulée';
         body = 'Your appointment has been cancelled.';
+        prefKey = 'notif_cancellations';
       default:
         return; // Don't notify for pending / rejected.
     }
+
+    if (!await _isPrefEnabled(prefKey)) return;
 
     showNotification(
       channel: _clientChannel,
@@ -380,7 +389,8 @@ class NotificationService {
     }
   }
 
-  void _notifyProviderNewBooking(String bookingId) {
+  Future<void> _notifyProviderNewBooking(String bookingId) async {
+    if (!await _isPrefEnabled('notif_new_bookings')) return;
     showNotification(
       channel: _providerChannel,
       title: 'New Request / Nouvelle demande !',
@@ -389,20 +399,25 @@ class NotificationService {
     );
   }
 
-  void _notifyProviderTransition(BookingStatus status, String bookingId) {
+  Future<void> _notifyProviderTransition(BookingStatus status, String bookingId) async {
     String? title;
     String? body;
+    String prefKey;
 
     switch (status) {
       case BookingStatus.cancelled:
         title = 'Booking Cancelled / Réservation annulée';
         body = 'A client cancelled their appointment.';
+        prefKey = 'notif_cancellations';
       case BookingStatus.completed:
         title = 'Service Complete! / Service terminé !';
         body = 'The session has been marked as completed.';
+        prefKey = 'notif_booking_updates';
       default:
         return; // Don't notify providers for other transitions.
     }
+
+    if (!await _isPrefEnabled(prefKey)) return;
 
     showNotification(
       channel: _providerChannel,
@@ -412,12 +427,24 @@ class NotificationService {
     );
   }
 
+  // ── Preference check helper ────────────────────────────────────────────
+
+  Future<bool> _isPrefEnabled(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(key) ?? true; // default: enabled
+    } catch (_) {
+      return true;
+    }
+  }
+
   // ═════════════════════════════════════════════════════════════════════════
   // Helper: trigger a review notification (called from submitReview)
   // ═════════════════════════════════════════════════════════════════════════
 
   /// Show a "New Review" notification on the provider's device.
-  void notifyNewReview(String providerId) {
+  Future<void> notifyNewReview(String providerId) async {
+    if (!await _isPrefEnabled('notif_reviews')) return;
     showNotification(
       channel: _providerChannel,
       title: 'New Review! / Nouvel avis !',

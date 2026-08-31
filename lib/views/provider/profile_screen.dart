@@ -10,6 +10,7 @@ import '../../services/supabase_service.dart';
 import '../../widgets/custom_avatar.dart';
 import '../widgets/edit_profile_screen.dart';
 import '../widgets/help_support_screen.dart';
+import '../widgets/notification_settings_screen.dart';
 import 'business_screen.dart';
 import 'service_manager_screen.dart';
 
@@ -1339,76 +1340,38 @@ class _ProviderSettingsSection extends StatelessWidget {
 
         const SizedBox(height: 10),
 
+        // ─── Notifications Card ────────────────────────────
+        _ProviderSettingsLinkCard(
+          icon: Icons.notifications_outlined,
+          iconColor: const Color(0xFF4A90E2),
+          title: lang.isFrench ? 'Notifications' : 'Notifications',
+          subtitle: lang.isFrench
+              ? 'Gérer les alertes push'
+              : 'Manage push alerts',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const NotificationSettingsScreen(),
+            ),
+          ),
+          theme: theme,
+        ),
+
+        const SizedBox(height: 10),
+
         // ─── Help & Support Card ───────────────────────────
-        Container(
-          decoration: BoxDecoration(
-            color: theme.cardBackground,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: InkWell(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const HelpSupportScreen(),
-              ),
-            ),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0x14F4665C),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.help_outline_rounded,
-                      color: Color(0xFFF4665C),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lang.isFrench ? 'Aide & Support' : 'Help & Support',
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
-                            color: theme.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          lang.isFrench ? 'FAQ, conditions, confidentialité' : 'FAQ, terms, privacy',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: theme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: theme.textSecondary,
-                    size: 22,
-                  ),
-                ],
-              ),
+        _ProviderSettingsLinkCard(
+          icon: Icons.help_outline_rounded,
+          iconColor: const Color(0xFFF4665C),
+          title: lang.isFrench ? 'Aide & Support' : 'Help & Support',
+          subtitle: lang.isFrench
+              ? 'FAQ, conditions, confidentialité'
+              : 'FAQ, terms, privacy',
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const HelpSupportScreen(),
             ),
           ),
+          theme: theme,
         ),
       ],
     );
@@ -1424,6 +1387,94 @@ class _ProviderSettingsSection extends StatelessWidget {
 // =============================================================================
 // 3-segment theme toggle
 // =============================================================================
+
+// =============================================================================
+// Reusable settings link card
+// =============================================================================
+
+class _ProviderSettingsLinkCard extends StatelessWidget {
+  const _ProviderSettingsLinkCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final dynamic theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: theme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: theme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.textSecondary,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ThemeSegmentedToggle extends StatelessWidget {
   const _ThemeSegmentedToggle({
