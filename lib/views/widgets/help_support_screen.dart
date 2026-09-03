@@ -245,7 +245,7 @@ Dernière mise à jour : 31 août 2026
 En utilisant StyleLink ("l'Application"), vous acceptez ces conditions d'utilisation. Si vous n'acceptez pas ces conditions, veuillez ne pas utiliser l'Application.
 
 2. DESCRIPTION DU SERVICE
-StyleLink est une plateforme de mise en relation entre clients et prestataires de services de beauté et de coiffure au Cameroun. L'Application permet aux clients de rechercher, réserver et payer des services, et aux prestataires de gérer leur activité.
+StyleLink est une plateforme de mise en relation entre clients et prestataires de services de beauté et de coiffure au Cameroun. L'Application permet aux clients de rechercher, réserver et payer des services (espèces ou mobile money à la livraison), et aux prestataires de gérer leur activité.
 
 3. INSCRIPTION
 Vous devez avoir au moins 18 ans pour utiliser StyleLink. Lors de l'inscription, vous fournissez des informations exactes et complètes. Vous êtes responsable de la sécurité de votre compte.
@@ -278,13 +278,13 @@ Last updated: August 31, 2026
 By using StyleLink ("the App"), you agree to these Terms of Service. If you do not agree, please do not use the App.
 
 2. DESCRIPTION OF SERVICE
-StyleLink is a platform connecting clients with beauty and haircare service providers in Cameroon. The App allows clients to search, book, and pay for services, and allows providers to manage their business.
+StyleLink is a platform connecting clients with beauty and haircare service providers in Cameroon. The App allows clients to search, book, and pay for services (cash or mobile money on delivery), and allows providers to manage their business.
 
 3. REGISTRATION
 You must be at least 18 years old to use StyleLink. You provide accurate and complete information during registration. You are responsible for your account security.
 
 4. BOOKINGS
-Bookings are subject to availability. Payment is required at the time of booking. Cancellations are free up to 24 hours before the appointment.
+Bookings are subject to availability. Payment is collected in cash or mobile money after the service is completed. Cancellations are free up to 24 hours before the appointment.
 
 5. PROVIDERS
 Providers are independent professionals. StyleLink does not employ providers and does not guarantee the quality of their services.
@@ -293,7 +293,7 @@ Providers are independent professionals. StyleLink does not employ providers and
 Reviews must be honest and respectful. StyleLink reserves the right to remove inappropriate reviews.
 
 7. LIMITATION OF LIABILITY
-StyleLink is not responsible for disputes between clients and providers. Our liability is limited to the amount of service fees paid.
+StyleLink is not responsible for disputes between clients and providers. Our liability is limited to the amount of service fees paid. Payments are collected directly between client and provider.
 
 8. MODIFICATIONS
 StyleLink reserves the right to modify these terms at any time. Modifications take effect upon publication.

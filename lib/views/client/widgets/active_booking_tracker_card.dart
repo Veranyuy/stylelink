@@ -393,7 +393,7 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
             Row(
               children: [
                 Text(
-                  'Total Paid / Montant:',
+                  'Amount Due / Montant dû:',
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                 ),
                 const Spacer(),

@@ -14,7 +14,7 @@ import '../models/booking.dart';
 ///
 /// - **confirmed** → "Open GPS Navigation" + "Mark as Arrived"
 /// - **arrived**   → "Start Work" (opens PIN verification dialog)
-/// - **in_progress** → "Finish Session & Collect Payment"
+/// - **in_progress** → "Finish Session & Collect Cash/Mobile Money"
 /// - **completed** → green completion badge
 ///
 /// After every successful stage advance, [onStatusUpdated] is called so the
@@ -299,7 +299,7 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Service completed successfully!'),
+            content: Text('✅ Service completed! Collect payment from client.'),
             backgroundColor: Color(0xFF2E9E66),
             duration: Duration(seconds: 3),
           ),
@@ -563,7 +563,7 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
           child: FilledButton.icon(
             onPressed: _confirmAndComplete,
             icon: const Icon(Icons.check_circle_outline, size: 20),
-            label: const Text('Complete Service / Terminer'),
+            label: const Text('Complete & Collect Payment'),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF3FBF7F),
               foregroundColor: Colors.white,
