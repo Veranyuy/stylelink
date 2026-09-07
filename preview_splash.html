@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>StyleLink Splash Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #0B0B1E;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    canvas { display: block; position: absolute; top: 0; left: 0; }
+    #ui {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      pointer-events: none; z-index: 10;
+    }
+    .logo-group {
+      display: flex; flex-direction: column; align-items: center;
+      opacity: 0; transform: scale(0.5);
+      animation: logoReveal 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s forwards;
+    }
+    @keyframes logoReveal {
+      0% { opacity: 0; transform: scale(0.5); filter: blur(20px); }
+      60% { opacity: 1; transform: scale(1.05); filter: blur(0); }
+      100% { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    .circle-container {
+      position: relative; width: 120px; height: 120px; margin-bottom: 28px;
+    }
+    .glow-ring {
+      position: absolute; top: -15px; left: -15px; right: -15px; bottom: -15px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(46,196,182,0.3) 0%, transparent 70%);
+      animation: glowPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes glowPulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.15); opacity: 1; }
+    }
+    .circle {
+      position: relative; width: 120px; height: 120px; border-radius: 50%;
+      background: linear-gradient(135deg, #2EC4B6 0%, #20A89C 50%, #3AAFA9 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 40px rgba(46,196,182,0.4), 0 0 80px rgba(46,196,182,0.2), inset 0 -3px 8px rgba(0,0,0,0.15);
+      animation: circleFloat 3s ease-in-out infinite;
+    }
+    @keyframes circleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .circle::before {
+      content: ''; position: absolute; top: 8px; left: 20px; right: 20px; height: 35%;
+      border-radius: 50%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%);
+    }
+    .s-letter {
+      font-size: 52px; font-weight: 800; color: #FF6B35;
+      text-shadow: 0 2px 10px rgba(255,107,53,0.4);
+      font-family: Georgia, 'Times New Roman', serif;
+      letter-spacing: -2px;
+    }
+    .brand-text {
+      display: flex; align-items: baseline; gap: 0; margin-bottom: 12px;
+      opacity: 0; animation: fadeUp 0.8s ease 1.2s forwards;
+    }
+    @keyframes fadeUp {
+      0% { opacity: 0; transform: translateY(20px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    .brand-style {
+      font-size: 38px; font-weight: 700; letter-spacing: -1px;
+      background: linear-gradient(135deg, #FF6B35, #FFB347);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .brand-dot {
+      font-size: 28px; color: #2EC4B6; margin: 0 1px;
+      text-shadow: 0 0 12px rgba(46,196,182,0.6);
+    }
+    .brand-link {
+      font-size: 38px; font-weight: 300; color: rgba(255,255,255,0.9);
+      letter-spacing: 1px;
+    }
+    .tagline {
+      font-size: 15px; color: rgba(255,255,255,0.45); letter-spacing: 2px;
+      text-transform: uppercase; margin-top: 4px;
+      opacity: 0; animation: fadeUp 0.8s ease 1.6s forwards;
+    }
+    .spinner-container {
+      position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
+      opacity: 0; animation: fadeUp 0.6s ease 2s forwards;
+    }
+    .spinner {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2.5px solid rgba(46,196,182,0.15);
+      border-top-color: #2EC4B6;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .skip-hint {
+      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+      font-size: 12px; color: rgba(255,255,255,0.2); letter-spacing: 1px;
+      opacity: 0; animation: fadeUp 0.6s ease 2.2s forwards;
+    }
+    .timer-bar {
+      position: absolute; bottom: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, #2EC4B6, #FF6B35);
+      border-radius: 0 2px 0 0;
+      animation: timerProgress 15s linear 2.5s forwards;
+      width: 0%;
+    }
+    @keyframes timerProgress { to { width: 100%; } }
+    .replay-btn {
+      position: absolute; top: 20px; right: 20px;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.5); border-radius: 50%; width: 40px; height: 40px;
+      font-size: 18px; cursor: pointer; z-index: 20;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.3s; pointer-events: all;
+    }
+    .replay-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+    #onboarding {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: #0B0B1E; z-index: 30;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.6s ease;
+    }
+    #onboarding.show { display: flex; opacity: 1; }
+    .onb-page {
+      text-align: center; padding: 40px;
+      animation: fadeUp 0.8s ease forwards;
+    }
+    .onb-circle {
+      width: 160px; height: 160px; border-radius: 50%; margin: 0 auto 32px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .onb-circle.teal { background: linear-gradient(135deg, #2EC4B6, #3AAFA9); }
+    .onb-circle.orange { background: linear-gradient(135deg, #FF6B35, #FFB347); }
+    .onb-circle.mixed { background: linear-gradient(135deg, #2EC4B6 0%, #FF6B35 100%); }
+    .onb-icon { font-size: 64px; }
+    .onb-title { font-size: 24px; font-weight: 700; color: white; margin-bottom: 12px; }
+    .onb-desc { font-size: 16px; color: rgba(255,255,255,0.5); line-height: 1.6; max-width: 300px; margin: 0 auto; }
+    .onb-dots { display: flex; gap: 8px; margin-top: 40px; }
+    .onb-dot { width: 8px; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.2); transition: all 0.3s; }
+    .onb-dot.active { width: 24px; background: #2EC4B6; }
+  </style>
+</head>
+<body>
+  <canvas id="particles"></canvas>
+
+  <div id="ui">
+    <div class="logo-group">
+      <div class="circle-container">
+        <div class="glow-ring"></div>
+        <div class="circle"><span class="s-letter">S</span></div>
+      </div>
+      <div class="brand-text">
+        <span class="brand-style">Style</span><span class="brand-dot">◉</span><span class="brand-link">Link</span>
+      </div>
+      <div class="tagline">Discover &amp; Book Premium Stylists</div>
+    </div>
+    <div class="spinner-container"><div class="spinner"></div></div>
+    <div class="skip-hint">Tap anywhere to continue</div>
+  </div>
+
+  <div class="timer-bar" id="timerBar"></div>
+
+  <button class="replay-btn" id="replayBtn" title="Replay">↻</button>
+
+  <div id="onboarding">
+    <div class="onb-page">
+      <div class="onb-circle teal"><span class="onb-icon">✂️</span></div>
+      <div class="onb-title">Find Your Stylist</div>
+      <div class="onb-desc">Discover top-rated barbers, hair stylists, and beauty professionals near you.</div>
+    </div>
+    <div class="onb-dots">
+      <div class="onb-dot active"></div>
+      <div class="onb-dot"></div>
+      <div class="onb-dot"></div>
+    </div>
+  </div>
+
+  <script>
+    // ── Particle system ──
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let animId;
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    class Particle {
+      constructor() { this.reset(); }
+      reset() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 0.5;
+        this.speedX = (Math.random() - 0.5) * 0.3;
+        this.speedY = (Math.random() - 0.5) * 0.3;
+        this.opacity = Math.random() * 0.3 + 0.05;
+        this.color = Math.random() > 0.7 ? '#2EC4B6' : (Math.random() > 0.5 ? '#FF6B35' : '#ffffff');
+        this.life = 0;
+        this.maxLife = Math.random() * 400 + 200;
+      }
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        this.life++;
+        if (this.life > this.maxLife || this.x < -10 || this.x > canvas.width + 10 || this.y < -10 || this.y > canvas.height + 10) {
+          this.reset();
+        }
+      }
+      draw() {
+        const fadeIn = Math.min(1, this.life / 60);
+        const fadeOut = Math.max(0, 1 - (this.life - this.maxLife + 60) / 60);
+        const alpha = this.opacity * fadeIn * (this.life > this.maxLife - 60 ? fadeOut : 1);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // Create particles
+    for (let i = 0; i < 80; i++) particles.push(new Particle());
+
+    // Ambient glow orbs
+    const orbs = [
+      { x: 0.3, y: 0.4, r: 200, color: '46,196,182', speed: 0.0003 },
+      { x: 0.7, y: 0.6, r: 150, color: '255,107,53', speed: 0.0005 },
+      { x: 0.5, y: 0.3, r: 180, color: '46,196,182', speed: 0.0004 },
+    ];
+
+    function animateParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const t = Date.now();
+      orbs.forEach(o => {
+        const ox = (o.x + Math.sin(t * o.speed) * 0.1) * canvas.width;
+        const oy = (o.y + Math.cos(t * o.speed * 1.3) * 0.1) * canvas.height;
+        const grad = ctx.createRadialGradient(ox, oy, 0, ox, oy, o.r);
+        grad.addColorStop(0, `rgba(${o.color},0.04)`);
+        grad.addColorStop(1, `rgba(${o.color},0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(ox - o.r, oy - o.r, o.r * 2, o.r * 2);
+      });
+      particles.forEach(p => { p.update(); p.draw(); });
+      animId = requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // ── Tap to skip ──
+    let skipped = false;
+    function skipSplash() {
+      if (skipped) return;
+      skipped = true;
+      const ui = document.getElementById('ui');
+      ui.style.transition = 'opacity 0.5s ease';
+      ui.style.opacity = '0';
+      setTimeout(() => {
+        ui.style.display = 'none';
+        const ob = document.getElementById('onboarding');
+        ob.style.display = 'flex';
+        requestAnimationFrame(() => { ob.style.opacity = '1'; });
+      }, 500);
+    }
+    document.body.addEventListener('click', skipSplash);
+
+    // ── Replay ──
+    document.getElementById('replayBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      skipped = false;
+      const ui = document.getElementById('ui');
+      const ob = document.getElementById('onboarding');
+      ob.style.opacity = '0';
+      ob.style.display = 'none';
+      ui.style.display = 'flex';
+      ui.style.opacity = '1';
+      // Re-trigger animations
+      ui.querySelectorAll('.logo-group, .brand-text, .tagline, .spinner-container, .skip-hint').forEach(el => {
+        el.style.animation = 'none';
+        el.offsetHeight; // trigger reflow
+        el.style.animation = '';
+      });
+      const bar = document.getElementById('timerBar');
+      bar.style.animation = 'none';
+      bar.offsetHeight;
+      bar.style.animation = '';
+    });
+  </script>
+</body>
+</html>
