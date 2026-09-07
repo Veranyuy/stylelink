@@ -381,10 +381,10 @@ class _OnboardingOrAuthGateState extends State<_OnboardingOrAuthGate> {
     }
     if (_showOnboarding == null) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0D0D1A),
+        backgroundColor: Color(0xFFF2EDF2),
         body: Center(
           child: CircularProgressIndicator(
-            color: Color(0xFF2EC4B6),
+            color: Color(0xFFD08A8E),
           ),
         ),
       );

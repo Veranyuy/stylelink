@@ -74,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen>
     _glowController.repeat(reverse: true);
     _floatController.repeat(reverse: true);
 
-    _timer = Timer(const Duration(seconds: 15), () {
+    _timer = Timer(const Duration(seconds: 4), () {
       if (mounted) widget.onReady?.call();
     });
   }
