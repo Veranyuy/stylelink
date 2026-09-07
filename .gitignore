@@ -83,3 +83,16 @@ build/
 # android/app/google-services.json
 # ios/Runner/GoogleService-Info.plist
 # lib/firebase_options.dart
+
+# Android signing
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+*.jks
+*.keystore
+
+# iOS signing
+ios/*.mobileprovision
+ios/*.cer
+ios/*.p12
+ios/Runner/GoogleService-Info.plist

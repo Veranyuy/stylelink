@@ -37,6 +37,12 @@ dependencies:
   # Local push notifications for booking status alerts.
   flutter_local_notifications: ^18.0.0
 
+  # Crash reporting and performance monitoring.
+  sentry_flutter: ^8.9.0
+
+  # Native splash screen generation.
+  flutter_native_splash: ^2.4.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -46,3 +52,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/

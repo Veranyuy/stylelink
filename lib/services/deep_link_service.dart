@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 /// Generates and parses deep links for StyleLink.
 ///
 /// URL scheme: `https://stylelink.app/provider/{providerId}`
