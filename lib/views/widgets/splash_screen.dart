@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 /// Premium animated splash screen for StyleLink.
 ///
-/// Light white-to-grey gradient background with a thin teal ring logo,
-/// coral "S" serif letter, and staggered reveal animations.
+/// Light pinkish-grey gradient background with a thin ring that gradients
+/// from coral to lavender, coral "S" serif letter, and staggered animations.
 /// Shows for 15 seconds or until tapped.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.onReady});
@@ -99,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFBFB),
+      backgroundColor: const Color(0xFFF2EDF2),
       body: GestureDetector(
         onTap: _skip,
         behavior: HitTestBehavior.opaque,
@@ -111,9 +111,9 @@ class _SplashScreenState extends State<SplashScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFFFDFBFB), // near white
-                Color(0xFFF8F5F3), // very light warm
-                Color(0xFFF0ECE8), // soft warm grey
+                Color(0xFFF8F6F8), // very light pinkish white
+                Color(0xFFF2EDF2), // light pinkish grey
+                Color(0xFFEDE8EE), // slightly deeper
               ],
             ),
           ),
@@ -150,7 +150,7 @@ class _SplashScreenState extends State<SplashScreen>
         AnimatedBuilder(
           animation: _floatController,
           builder: (context, _) {
-            final floatY = math.sin(_floatController.value * math.pi) * 5;
+            final floatY = math.sin(_floatController.value * math.pi) * 4;
             return Transform.translate(
               offset: Offset(0, floatY),
               child: _buildLogoRing(),
@@ -158,7 +158,7 @@ class _SplashScreenState extends State<SplashScreen>
           },
         ),
 
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         // ── Brand text: StyleLink ──
         AnimatedBuilder(
@@ -177,7 +177,7 @@ class _SplashScreenState extends State<SplashScreen>
           },
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
         // ── Tagline ──
         AnimatedBuilder(
@@ -194,10 +194,10 @@ class _SplashScreenState extends State<SplashScreen>
                 child: const Text(
                   'Discover and Book Stylists Near You.',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w400,
-                    color: Color(0xFF888888),
-                    letterSpacing: 0.3,
+                    color: Color(0xFF999099),
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
@@ -214,18 +214,18 @@ class _SplashScreenState extends State<SplashScreen>
             return Opacity(
               opacity: Curves.easeOut.transform(_spinnerController.value),
               child: const SizedBox(
-                width: 24,
-                height: 24,
+                width: 22,
+                height: 22,
                 child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Color(0xFF2EC4B6),
+                  strokeWidth: 2.0,
+                  color: Color(0xFFD08A8E),
                 ),
               ),
             );
           },
         ),
 
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
 
         // ── Skip hint ──
         AnimatedBuilder(
@@ -233,74 +233,71 @@ class _SplashScreenState extends State<SplashScreen>
           builder: (context, _) {
             return Opacity(
               opacity:
-                  Curves.easeOut.transform(_spinnerController.value) * 0.4,
+                  Curves.easeOut.transform(_spinnerController.value) * 0.35,
               child: const Text(
                 'Tap anywhere to skip',
                 style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFFBBBBBB),
-                  letterSpacing: 0.5,
+                  fontSize: 11,
+                  color: Color(0xFFBBB5BC),
+                  letterSpacing: 0.3,
                 ),
               ),
             );
           },
         ),
 
-        const SizedBox(height: 48),
+        const SizedBox(height: 44),
       ],
     );
   }
 
-  /// Thin teal ring with coral "S" inside — matches the app logo exactly.
+  /// Thin ring with coral-to-lavender gradient — matches the app logo exactly.
   Widget _buildLogoRing() {
     return AnimatedBuilder(
       animation: _glowController,
       builder: (context, _) {
-        final glowOpacity = 0.15 + _glowController.value * 0.15;
+        final glowOpacity = 0.08 + _glowController.value * 0.08;
         return Stack(
           alignment: Alignment.center,
           children: [
             // Subtle outer glow
             Container(
-              width: 100,
-              height: 100,
+              width: 90,
+              height: 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Color.fromRGBO(46, 196, 182, glowOpacity),
-                    blurRadius: 30,
-                    spreadRadius: 5,
+                    color: Color.fromRGBO(210, 140, 160, glowOpacity),
+                    blurRadius: 24,
+                    spreadRadius: 4,
                   ),
                 ],
               ),
             ),
-            // Thin teal ring
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF2EC4B6),
-                  width: 2.5,
+            // Ring with gradient border (coral → lavender)
+            CustomPaint(
+              size: const Size(72, 72),
+              painter: _GradientRingPainter(
+                gradient: const LinearGradient(
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                  colors: [
+                    Color(0xFFEF8A8D), // coral pink
+                    Color(0xFFD08CB5), // mauve
+                    Color(0xFFBF88C1), // lavender
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0x152EC4B6),
-                    blurRadius: 12,
-                    spreadRadius: 2,
-                  ),
-                ],
+                strokeWidth: 2.0,
               ),
             ),
             // Coral "S" letter
             const Text(
               'S',
               style: TextStyle(
-                fontSize: 36,
+                fontSize: 32,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFFFF6B35),
+                color: Color(0xFFFA9287), // coral salmon
                 fontFamily: 'Georgia',
                 height: 1.0,
               ),
@@ -311,32 +308,59 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  /// "StyleLink" brand text — "Style" in coral, "Link" in dark grey.
+  /// "StyleLink" brand text — both in dark grey matching the logo.
   Widget _buildBrandText() {
     return const Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // "Style" in coral gradient
         Text(
           'Style',
           style: TextStyle(
-            fontSize: 36,
+            fontSize: 34,
             fontWeight: FontWeight.w800,
-            color: Color(0xFFFF6B35),
+            color: Color(0xFF2A2730), // dark grey navy
             letterSpacing: -0.5,
           ),
         ),
-        // "Link" in dark grey
         Text(
           'Link',
           style: TextStyle(
-            fontSize: 36,
+            fontSize: 34,
             fontWeight: FontWeight.w400,
-            color: Color(0xFF2D2D3A),
+            color: Color(0xFF2A2730), // same dark
             letterSpacing: -0.5,
           ),
         ),
       ],
     );
+  }
+}
+
+/// Custom painter for gradient-bordered circle ring.
+class _GradientRingPainter extends CustomPainter {
+  final LinearGradient gradient;
+  final double strokeWidth;
+
+  _GradientRingPainter({required this.gradient, required this.strokeWidth});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final paint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      (size.width - strokeWidth) / 2,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GradientRingPainter oldDelegate) {
+    return oldDelegate.gradient != gradient || oldDelegate.strokeWidth != strokeWidth;
   }
 }
