@@ -62,8 +62,8 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _googleBusy = true);
     try {
-      final launched =
-          await SupabaseService.instance.signInWithGoogle(role: UserRole.client);
+      final launched = await SupabaseService.instance
+          .signInWithGoogle(role: UserRole.client);
       AnalyticsService.instance.logLogin(method: 'google');
       if (!launched && mounted) {
         _showError('Could not open Google sign-in. Please try again.');
@@ -113,7 +113,8 @@ class _AuthScreenState extends State<AuthScreen> {
         AnalyticsService.instance.logSignUp(method: 'email');
         if (response.session == null && mounted) {
           setState(() {
-            _notice = 'Account created - check your email to confirm, then sign in.';
+            _notice =
+                'Account created - check your email to confirm, then sign in.';
           });
         }
       } else {
@@ -169,7 +170,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFF4665C),
+              backgroundColor: const Color(0xFFFA5252),
             ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Send Reset Link'),
@@ -211,14 +212,14 @@ class _AuthScreenState extends State<AuthScreen> {
           const Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: Color(0xFFFAF7F3),
+                color: Color(0xFFFDFBF7),
                 gradient: RadialGradient(
                   center: Alignment(-0.8, -1.05),
                   radius: 1.35,
                   colors: [
-                    Color(0x4DFF8B7B),
-                    Color(0x33B7A6EC),
-                    Color(0x00FAF7F3),
+                    Color(0x4DFA5252),
+                    Color(0x339333EA),
+                    Color(0x00FDFBF7),
                   ],
                   stops: [0.0, 0.45, 1.0],
                 ),
@@ -249,7 +250,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         _googleButton(busy: _googleBusy),
                         const SizedBox(height: 18),
                         const _OrDivider(
-                          label: 'or continue with email / ou avec votre e-mail',
+                          label:
+                              'or continue with email / ou avec votre e-mail',
                         ),
                         const SizedBox(height: 18),
                         _emailView(),
@@ -267,9 +269,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   ButtonStyle? _segmentedStyle() => SegmentedButton.styleFrom(
         backgroundColor: const Color(0x14000000),
-        selectedBackgroundColor: const Color(0xFFF4665C),
+        selectedBackgroundColor: const Color(0xFFFA5252),
         selectedForegroundColor: Colors.white,
-        foregroundColor: const Color(0xFF2A2730),
+        foregroundColor: const Color(0xFF1F2937),
         side: BorderSide.none,
         textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
         visualDensity: VisualDensity.compact,
@@ -279,18 +281,19 @@ class _AuthScreenState extends State<AuthScreen> {
       onPressed: busy ? null : _signInWithGoogle,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(56),
-        backgroundColor: const Color(0xFFF4665C),
+        backgroundColor: const Color(0xFFFA5252),
         foregroundColor: Colors.white,
-        disabledBackgroundColor: const Color(0x55F4665C),
+        disabledBackgroundColor: const Color(0x55FA5252),
         elevation: 2,
-        shadowColor: const Color(0x33F4665C),
+        shadowColor: const Color(0x33FA5252),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       child: busy
           ? const SizedBox(
               width: 22,
               height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.4),
+              child: CircularProgressIndicator(
+                  strokeWidth: 2.4, color: Colors.white),
             )
           : const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -343,7 +346,7 @@ class _AuthScreenState extends State<AuthScreen> {
               'Forgot Password? / Mot de passe oublie ?',
               style: TextStyle(
                 fontSize: 12.5,
-                color: Color(0xFFF4665C),
+                color: Color(0xFFFA5252),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -354,14 +357,15 @@ class _AuthScreenState extends State<AuthScreen> {
           onPressed: _emailBusy ? null : _submitEmail,
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(52),
-            backgroundColor: const Color(0xFFF4665C),
-            disabledBackgroundColor: const Color(0x22F4665C),
+            backgroundColor: const Color(0xFFFA5252),
+            disabledBackgroundColor: const Color(0x22FA5252),
           ),
           child: _emailBusy
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2.4, color: Colors.white),
                 )
               : Text(
                   _isSignUp ? 'Create Account' : 'Sign In',
@@ -371,13 +375,14 @@ class _AuthScreenState extends State<AuthScreen> {
       ],
     );
   }
+
   Widget _noticeBox(String text) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF1EE),
+        color: const Color(0xFFFDEDED),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x33F4665C)),
+        border: Border.all(color: const Color(0x33FA5252)),
       ),
       child: Text(
         text,
@@ -421,7 +426,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFF4665C), width: 1.6),
+          borderSide: const BorderSide(color: Color(0xFFFA5252), width: 1.6),
         ),
       ),
     );

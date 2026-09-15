@@ -102,8 +102,8 @@ Future<void> main() async {
   }
 }
 
-/// StyleLink visual identity: soft off-white surfaces, coral seed color,
-/// lavender accents (mirrors the mobile design language).
+/// StyleLink visual identity: warm off-white surfaces, official coral seed
+/// color (#FA5252) with purple accents (#9333EA).
 class StyleLinkApp extends StatefulWidget {
   const StyleLinkApp({super.key});
 
@@ -131,8 +131,9 @@ class _StyleLinkAppState extends State<StyleLinkApp> {
 
   @override
   Widget build(BuildContext context) {
-    const coral = Color(0xFFF4665C);
-    const lavender = Color(0xFF9E86E6);
+    // Official brand palette — keep in sync with theme_provider.dart tokens.
+    const coral = Color(0xFFFA5252);
+    const purple = Color(0xFF9333EA);
     return LanguageScope(
       provider: _languageProvider,
       child: ThemeScope(
@@ -149,29 +150,29 @@ class _StyleLinkAppState extends State<StyleLinkApp> {
                 return _languageProvider.locale;
               },
               themeMode: _themeProvider.mode,
-            theme: ThemeData(
-              useMaterial3: true,
-              brightness: Brightness.light,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: coral,
-                secondary: lavender,
-                surface: const Color(0xFFFAF7F3),
+              theme: ThemeData(
+                useMaterial3: true,
+                brightness: Brightness.light,
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: coral,
+                  secondary: purple,
+                  surface: const Color(0xFFFDFBF7),
+                ),
+                scaffoldBackgroundColor: const Color(0xFFFDFBF7),
+                fontFamilyFallback: const ['sans-serif'],
               ),
-              scaffoldBackgroundColor: const Color(0xFFFAF7F3),
-              fontFamilyFallback: const ['sans-serif'],
-            ),
-            darkTheme: ThemeData(
-              useMaterial3: true,
-              brightness: Brightness.dark,
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: coral,
-                secondary: lavender,
+              darkTheme: ThemeData(
+                useMaterial3: true,
                 brightness: Brightness.dark,
-                surface: const Color(0xFF1A1720),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: coral,
+                  secondary: purple,
+                  brightness: Brightness.dark,
+                  surface: const Color(0xFF1A1720),
+                ),
+                scaffoldBackgroundColor: const Color(0xFF1A1720),
+                fontFamilyFallback: const ['sans-serif'],
               ),
-              scaffoldBackgroundColor: const Color(0xFF1A1720),
-              fontFamilyFallback: const ['sans-serif'],
-            ),
               home: const AuthGate(),
             );
           },
@@ -301,7 +302,7 @@ class _ErrorScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(Icons.error_outline,
-                    color: Color(0xFFF4665C), size: 44),
+                    color: Color(0xFFFA5252), size: 44),
                 const SizedBox(height: 16),
                 const Text(
                   'No profile found',
@@ -381,10 +382,10 @@ class _OnboardingOrAuthGateState extends State<_OnboardingOrAuthGate> {
     }
     if (_showOnboarding == null) {
       return const Scaffold(
-        backgroundColor: Color(0xFFF2EDF2),
+        backgroundColor: Color(0xFFFDFBF7),
         body: Center(
           child: CircularProgressIndicator(
-            color: Color(0xFFD08A8E),
+            color: Color(0xFFFA5252),
           ),
         ),
       );

@@ -91,12 +91,16 @@ class HelpSupportScreen extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _LegalTile(
-            title: lang.isFrench ? 'Conditions d\'Utilisation' : 'Terms of Service',
+            title: lang.isFrench
+                ? 'Conditions d\'Utilisation'
+                : 'Terms of Service',
             content: _termsOfService(lang),
           ),
           const SizedBox(height: 8),
           _LegalTile(
-            title: lang.isFrench ? 'Politique de Confidentialité' : 'Privacy Policy',
+            title: lang.isFrench
+                ? 'Politique de Confidentialité'
+                : 'Privacy Policy',
             content: _privacyPolicy(lang),
           ),
 
@@ -438,9 +442,7 @@ class _FaqTileState extends State<_FaqTile> {
         color: theme.cardBackground,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: _expanded
-              ? const Color(0x22F4665C)
-              : theme.divider,
+          color: _expanded ? const Color(0x22F4665C) : theme.divider,
         ),
       ),
       child: Column(

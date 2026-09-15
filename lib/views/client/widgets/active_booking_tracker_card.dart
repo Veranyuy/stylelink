@@ -110,11 +110,15 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           final stillActive = active.any((b) => b.id == _lastActiveBookingId);
           if (!stillActive) {
             final completed = bookings.firstWhere(
-              (b) => b.id == _lastActiveBookingId &&
+              (b) =>
+                  b.id == _lastActiveBookingId &&
                   b.status == BookingStatus.completed,
               orElse: () => Booking(
-                id: '', clientId: '', providerId: '',
-                serviceIds: const [], scheduledAt: DateTime(0),
+                id: '',
+                clientId: '',
+                providerId: '',
+                serviceIds: const [],
+                scheduledAt: DateTime(0),
               ),
             );
             if (completed.id.isNotEmpty &&
@@ -139,8 +143,6 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           _resolveProvider(booking.providerId);
         }
 
-
-
         // Ensure timer is running for in_progress.
         if (booking.status == BookingStatus.inProgress && _timer == null) {
           _startTimer();
@@ -153,7 +155,8 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
     );
   }
 
-  Widget _buildCard(Booking booking) {        return AnimatedSwitcher(
+  Widget _buildCard(Booking booking) {
+    return AnimatedSwitcher(
       duration: const Duration(milliseconds: 350),
       child: switch (booking.status) {
         BookingStatus.confirmed => _buildConfirmed(booking),
@@ -532,9 +535,7 @@ class _PinBadge extends StatelessWidget {
         color: highlight ? const Color(0x14F4665C) : const Color(0x0AF4665C),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: highlight
-              ? const Color(0xFFF4665C)
-              : const Color(0x33F4665C),
+          color: highlight ? const Color(0xFFF4665C) : const Color(0x33F4665C),
           width: highlight ? 2 : 1,
         ),
       ),
@@ -546,9 +547,8 @@ class _PinBadge extends StatelessWidget {
               Icon(
                 Icons.lock_outline,
                 size: 16,
-                color: highlight
-                    ? const Color(0xFFF4665C)
-                    : Colors.grey.shade600,
+                color:
+                    highlight ? const Color(0xFFF4665C) : Colors.grey.shade600,
               ),
               const SizedBox(width: 6),
               Text(
@@ -570,9 +570,8 @@ class _PinBadge extends StatelessWidget {
               fontSize: 32,
               fontWeight: FontWeight.w800,
               letterSpacing: 10,
-              color: highlight
-                  ? const Color(0xFFF4665C)
-                  : const Color(0xFF2A2730),
+              color:
+                  highlight ? const Color(0xFFF4665C) : const Color(0xFF2A2730),
             ),
           ),
           const SizedBox(height: 6),
@@ -756,7 +755,8 @@ class _ActionButtons extends StatelessWidget {
     // No phone number on the provider model — open the dialer with a
     // placeholder or use the chat as the primary contact method.
     final uri = Uri(scheme: 'tel', path: '');
-    await launcher.launchUrl(uri, mode: launcher.LaunchMode.externalApplication);
+    await launcher.launchUrl(uri,
+        mode: launcher.LaunchMode.externalApplication);
   }
 
   void _openChat(BuildContext context) {

@@ -102,7 +102,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.delete_forever, color: Color(0xFFE5484D), size: 40),
+        icon: const Icon(Icons.delete_forever,
+            color: Color(0xFFE5484D), size: 40),
         title: const Text('Delete Account?'),
         content: const Text(
           'This action is permanent and cannot be undone. All your data, services, bookings, and reviews will be permanently deleted.',
@@ -115,7 +116,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE5484D)),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE5484D)),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Permanently'),
           ),
@@ -244,8 +246,12 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                 _ManagementCard(
                   icon: Icons.edit_outlined,
                   iconColor: const Color(0xFF9E86E6),
-                  title: context.lang.isFrench ? 'Modifier le profil' : 'Edit Profile',
-                  subtitle: context.lang.isFrench ? 'Nom, téléphone, ville' : 'Name, phone, city',
+                  title: context.lang.isFrench
+                      ? 'Modifier le profil'
+                      : 'Edit Profile',
+                  subtitle: context.lang.isFrench
+                      ? 'Nom, téléphone, ville'
+                      : 'Name, phone, city',
                   trailing: '✏️',
                   onTap: _openEditProfile,
                 ),
@@ -308,7 +314,8 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
                   foregroundColor: const Color(0xFFE5484D),
                   side: const BorderSide(color: Color(0x33E5484D)),
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                  textStyle: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -401,8 +408,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
             label: const Text('List My Business'),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFF4665C),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
             ),
           ),
         ],
@@ -510,8 +516,8 @@ class _HeroHeader extends StatelessWidget {
                             )
                           : CustomAvatar(
                               avatarUrl: avatarUrl,
-                              displayName: profile?.fullName ??
-                                  provider.businessName,
+                              displayName:
+                                  profile?.fullName ?? provider.businessName,
                               radius: 32,
                             ),
                     ),
@@ -528,12 +534,10 @@ class _HeroHeader extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: const Color(0xFFF4665C),
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: Colors.white, width: 2),
+                              border: Border.all(color: Colors.white, width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black
-                                      .withValues(alpha: 0.2),
+                                  color: Colors.black.withValues(alpha: 0.2),
                                   blurRadius: 4,
                                 ),
                               ],
@@ -932,8 +936,7 @@ class _PortfolioGalleryState extends State<_PortfolioGallery> {
 
       setState(() => _uploading = true);
       final bytes = await xFile.readAsBytes();
-      final fileName =
-          'portfolio_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName = 'portfolio_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       final url =
           await SupabaseService.instance.uploadPortfolioImage(bytes, fileName);
@@ -997,7 +1000,7 @@ class _PortfolioGalleryState extends State<_PortfolioGallery> {
                 size: 20, color: theme.textPrimary),
             const SizedBox(width: 8),
             Expanded(
-              child:              Text(
+              child: Text(
                 '${context.t('portfolio')} / ${context.t('portfolio_sub')}',
                 style: TextStyle(
                   fontSize: 17,
@@ -1009,9 +1012,8 @@ class _PortfolioGalleryState extends State<_PortfolioGallery> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _isFull
-                    ? const Color(0x1AF4665C)
-                    : const Color(0x1A9E86E6),
+                color:
+                    _isFull ? const Color(0x1AF4665C) : const Color(0x1A9E86E6),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -1345,9 +1347,8 @@ class _ProviderSettingsSection extends StatelessWidget {
           icon: Icons.notifications_outlined,
           iconColor: const Color(0xFF4A90E2),
           title: lang.isFrench ? 'Notifications' : 'Notifications',
-          subtitle: lang.isFrench
-              ? 'Gérer les alertes push'
-              : 'Manage push alerts',
+          subtitle:
+              lang.isFrench ? 'Gérer les alertes push' : 'Manage push alerts',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const NotificationSettingsScreen(),
@@ -1594,9 +1595,8 @@ class _LanguageToggle extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isFrench
-                      ? const Color(0xFFF4665C)
-                      : Colors.grey.shade500,
+                  color:
+                      isFrench ? const Color(0xFFF4665C) : Colors.grey.shade500,
                 ),
               ),
             ),
@@ -1646,9 +1646,7 @@ class _Segment extends StatelessWidget {
           child: Icon(
             icon,
             size: 17,
-            color: selected
-                ? const Color(0xFF9E86E6)
-                : Colors.grey.shade500,
+            color: selected ? const Color(0xFF9E86E6) : Colors.grey.shade500,
           ),
         ),
       ),

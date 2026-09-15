@@ -92,7 +92,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     // Fire all queries concurrently.
     final results = await Future.wait([
       supabase.getProfileViewCount(pid, start: range.start, end: range.end),
-      supabase.getSearchImpressionCount(pid, start: range.start, end: range.end),
+      supabase.getSearchImpressionCount(pid,
+          start: range.start, end: range.end),
       supabase.getConversionRate(pid, start: range.start, end: range.end),
       supabase.getDailyViews(pid, start: range.start, end: range.end),
       supabase.getTopSearchQueries(pid),
@@ -115,13 +116,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     });
   }
 
-  Future<(int, int)> _countBookings(String providerId, DateTimeRange range) async {
+  Future<(int, int)> _countBookings(
+      String providerId, DateTimeRange range) async {
     try {
-      final rows = await SupabaseService.instance.watchBookingsForProvider(providerId).first;
+      final rows = await SupabaseService.instance
+          .watchBookingsForProvider(providerId)
+          .first;
       final inRange = rows.where((b) =>
           !b.scheduledAt.isBefore(range.start) &&
           b.scheduledAt.isBefore(range.end));
-      final completed = inRange.where((b) => b.status == BookingStatus.completed).length;
+      final completed =
+          inRange.where((b) => b.status == BookingStatus.completed).length;
       return (completed, inRange.length);
     } catch (_) {
       return (0, 0);
@@ -238,7 +243,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               value: _avgResponseTime == 0
                   ? '—'
                   : _formatDuration(_avgResponseTime),
-              sub: _avgResponseTime == 0 ? 'No responses yet' : 'Minutes to respond',
+              sub: _avgResponseTime == 0
+                  ? 'No responses yet'
+                  : 'Minutes to respond',
             ),
             const SizedBox(width: 10),
             _AnalyticCard(
@@ -465,7 +472,8 @@ class _ViewsChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final counts = data.map((d) => (d['count'] as num).toInt()).toList();
-    final maxCount = counts.isEmpty ? 1 : counts.reduce((a, b) => a > b ? a : b);
+    final maxCount =
+        counts.isEmpty ? 1 : counts.reduce((a, b) => a > b ? a : b);
 
     return Container(
       height: 140,
@@ -483,9 +491,12 @@ class _ViewsChart extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('$maxCount', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-              Text('${maxCount ~/ 2}', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
-              const Text('0', style: TextStyle(fontSize: 9, color: Color(0xFFBDBDBD))),
+              Text('$maxCount',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+              Text('${maxCount ~/ 2}',
+                  style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+              const Text('0',
+                  style: TextStyle(fontSize: 9, color: Color(0xFFBDBDBD))),
             ],
           ),
           const SizedBox(width: 8),
@@ -497,7 +508,8 @@ class _ViewsChart extends StatelessWidget {
                 final count = (d['count'] as num).toInt();
                 final fraction = maxCount > 0 ? count / maxCount : 0.0;
                 final dayStr = d['day']?.toString() ?? '';
-                final dayNum = dayStr.length >= 10 ? dayStr.substring(8, 10) : '?';
+                final dayNum =
+                    dayStr.length >= 10 ? dayStr.substring(8, 10) : '?';
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -534,7 +546,8 @@ class _ViewsChart extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           dayNum,
-                          style: TextStyle(fontSize: 8, color: Colors.grey.shade500),
+                          style: TextStyle(
+                              fontSize: 8, color: Colors.grey.shade500),
                         ),
                       ],
                     ),
@@ -646,9 +659,7 @@ class _QueryRow extends StatelessWidget {
             width: 22,
             height: 22,
             decoration: BoxDecoration(
-              color: rank <= 3
-                  ? const Color(0x149E86E6)
-                  : Colors.grey.shade100,
+              color: rank <= 3 ? const Color(0x149E86E6) : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Center(

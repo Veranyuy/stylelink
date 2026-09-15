@@ -50,6 +50,9 @@ dev_dependencies:
   # Official lint ruleset from the Flutter team.
   flutter_lints: ^4.0.0
 
+  # App drawer / desktop icon generation (see flutter_launcher_icons.yaml).
+  flutter_launcher_icons: ^0.14.3
+
 flutter:
   uses-material-design: true
 

@@ -96,3 +96,7 @@ ios/*.mobileprovision
 ios/*.cer
 ios/*.p12
 ios/Runner/GoogleService-Info.plist
+
+# Flutter desktop ephemeral build artifacts
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/

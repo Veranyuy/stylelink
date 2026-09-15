@@ -128,8 +128,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   return const EmptyState(
                     icon: Icons.chat_bubble_outline,
                     title: 'Say hello!',
-                    subtitle:
-                        'Start the conversation with your stylist.\n'
+                    subtitle: 'Start the conversation with your stylist.\n'
                         'Commencez la conversation avec votre styliste.',
                   );
                 }

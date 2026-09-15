@@ -54,8 +54,8 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
     final controllerName = TextEditingController(text: existing?.name ?? '');
     final controllerPrice =
         TextEditingController(text: existing?.price.toString() ?? '');
-    final controllerDuration =
-        TextEditingController(text: existing?.durationMinutes.toString() ?? '30');
+    final controllerDuration = TextEditingController(
+        text: existing?.durationMinutes.toString() ?? '30');
     final controllerDescription =
         TextEditingController(text: existing?.description ?? '');
     var isActive = existing?.isActive ?? true;
@@ -64,7 +64,9 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(existing == null ? 'Add Service / Ajouter' : 'Edit Service / Modifier'),
+          title: Text(existing == null
+              ? 'Add Service / Ajouter'
+              : 'Edit Service / Modifier'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -108,8 +110,7 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Active / Actif'),
                   value: isActive,
-                  onChanged: (v) =>
-                      setDialogState(() => isActive = v),
+                  onChanged: (v) => setDialogState(() => isActive = v),
                 ),
               ],
             ),
@@ -156,10 +157,9 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
           name: name,
           price: price,
           durationMinutes: duration,
-          description:
-              controllerDescription.text.trim().isEmpty
-                  ? null
-                  : controllerDescription.text.trim(),
+          description: controllerDescription.text.trim().isEmpty
+              ? null
+              : controllerDescription.text.trim(),
         );
       } else {
         await supabase.updateService(
@@ -167,10 +167,9 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
             id: existing.id,
             providerId: existing.providerId,
             name: name,
-            description:
-                controllerDescription.text.trim().isEmpty
-                    ? null
-                    : controllerDescription.text.trim(),
+            description: controllerDescription.text.trim().isEmpty
+                ? null
+                : controllerDescription.text.trim(),
             price: price,
             durationMinutes: duration,
             isActive: isActive,
@@ -246,7 +245,8 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
                 FutureBuilder<Provider?>(
                   future: _providerFuture,
                   builder: (context, snapshot) => IconButton.filled(
-                    onPressed: snapshot.data == null ? null : _openServiceDialog,
+                    onPressed:
+                        snapshot.data == null ? null : _openServiceDialog,
                     style: IconButton.styleFrom(
                       backgroundColor: const Color(0xFFF4665C),
                       foregroundColor: Colors.white,
@@ -300,8 +300,7 @@ class _ServiceManagerScreenState extends State<ServiceManagerScreen> {
                       return const EmptyState(
                         icon: Icons.content_cut_outlined,
                         title: 'No services yet',
-                        subtitle:
-                            'Tap + to add your first service listing.\n'
+                        subtitle: 'Tap + to add your first service listing.\n'
                             'Ajoutez votre première prestation.',
                       );
                     }
@@ -410,8 +409,8 @@ class _ServiceRow extends StatelessWidget {
             IconButton(
               onPressed: onDelete,
               tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline, size: 20,
-                  color: Color(0xFFE5484D)),
+              icon: const Icon(Icons.delete_outline,
+                  size: 20, color: Color(0xFFE5484D)),
             ),
           ],
         ),

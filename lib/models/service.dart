@@ -52,8 +52,10 @@ class Service {
       };
 
   /// "5 000 FCFA" — formatted with thin spaces, matching the app's copy.
-  String get priceLabel =>
-      '${NumberFormat.decimalPattern('fr').format(price)} FCFA';
+  /// A zero/missing price shows "Price on request / Prix sur demande".
+  String get priceLabel => price <= 0
+      ? 'Price on request / Prix sur demande'
+      : '${NumberFormat.decimalPattern('fr').format(price)} FCFA';
 
   /// "30 mins" / "1 hr 30" style duration label.
   String get durationLabel {

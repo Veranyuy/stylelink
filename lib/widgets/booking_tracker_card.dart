@@ -6,6 +6,9 @@ import 'package:url_launcher/url_launcher.dart' as launcher;
 
 import '../controllers/service_tracker_controller.dart';
 import '../models/booking.dart';
+import '../services/supabase_service.dart';
+import '../utils/formatters.dart';
+import 'counter_proposal_sheet.dart';
 
 /// A self-contained card that drives the provider-side booking lifecycle.
 ///
@@ -16,6 +19,11 @@ import '../models/booking.dart';
 /// - **arrived**   → "Start Work" (opens PIN verification dialog)
 /// - **in_progress** → "Finish Session & Collect Cash/Mobile Money"
 /// - **completed** → green completion badge
+///
+/// When the booking carries a pending reschedule request
+/// (`reschedule_status = 'pending'` + `proposed_scheduled_at`), the card
+/// shows a request banner with one-tap "Accept New Time" / "Decline New
+/// Time" buttons instead of the regular status actions.
 ///
 /// After every successful stage advance, [onStatusUpdated] is called so the
 /// parent can refresh its data.
@@ -40,10 +48,21 @@ class BookingTrackerCard extends StatefulWidget {
 class _BookingTrackerCardState extends State<BookingTrackerCard> {
   final _tracker = ServiceTrackerController.instance;
   bool _loading = false;
+  bool _counterBusy = false;
   Timer? _ticker;
 
   String get _bookingId => widget.booking['id']?.toString() ?? '';
   BookingStatus get _status => BookingStatus.parse(widget.booking['status']);
+
+  /// Parsed reschedule proposal on this booking (null = not a reschedule).
+  DateTime? get _proposedAt => DateTime.tryParse(
+      widget.booking['proposed_scheduled_at']?.toString() ?? '');
+  RescheduleStatus? get _rescheduleStatus =>
+      RescheduleStatus.parse(widget.booking['reschedule_status']);
+
+  /// True when the provider still needs to answer a reschedule request.
+  bool get _hasPendingReschedule =>
+      _rescheduleStatus == RescheduleStatus.pending && _proposedAt != null;
   int get _totalFcfa {
     final v = widget.booking['total_price_fcfa'];
     if (v is num) return v.toInt();
@@ -78,6 +97,78 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
   // ---------------------------------------------------------------------------
   // Actions
   // ---------------------------------------------------------------------------
+
+  /// Provider counters a reschedule request with a different time.
+  Future<void> _counterProposal() async {
+    final proposed = await showCounterProposalSheet(
+      context,
+      initial: _proposedAt,
+    );
+    if (proposed == null || !mounted) return;
+    setState(() => _counterBusy = true);
+    try {
+      await SupabaseService.instance.counterBooking(
+        bookingId: _bookingId,
+        proposedAt: proposed,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Counter proposal sent / Contre-proposition envoyée'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+      widget.onStatusUpdated();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not send counter proposal: $e'),
+            backgroundColor: const Color(0xFFB3261E),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _counterBusy = false);
+    }
+  }
+
+  /// One-tap provider response to a client's reschedule request.
+  Future<void> _respondToReschedule(bool accept) async {
+    setState(() => _loading = true);
+    try {
+      final updated = await SupabaseService.instance
+          .respondToReschedule(_bookingId, accept);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(accept
+              ? 'New time confirmed / Nouvel horaire confirmé'
+              : 'Reschedule declined / Report refusé — original time kept'),
+          backgroundColor:
+              accept ? const Color(0xFF2E7D32) : const Color(0xFF6E6A76),
+        ),
+      );
+      widget.onStatusUpdated();
+      // Touch [updated] so the analyzer keeps the return value (the parent
+      // reload picks up the new state from the stream).
+      debugPrint(
+        'Reschedule ${accept ? 'accepted' : 'declined'} -> '
+        '${updated.status.dbValue} @ ${updated.scheduledAt}',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not respond to reschedule: $e'),
+            backgroundColor: const Color(0xFFB3261E),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   Future<void> _markArrived() async {
     setState(() => _loading = true);
@@ -201,8 +292,8 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                      color: Color(0xFFF4665C), width: 1.5),
+                  borderSide:
+                      const BorderSide(color: Color(0xFFF4665C), width: 1.5),
                 ),
               ),
             ),
@@ -327,20 +418,30 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
   @override
   Widget build(BuildContext context) {
     _manageTicker();
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(
-          color: _statusBorderColor,
-          width: _status == BookingStatus.pending ? 1 : 1.4,
-        ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF242030) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _statusBorderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Pending reschedule request: banner above the header.
+            if (_hasPendingReschedule) ...[
+              _buildRescheduleBanner(),
+              const SizedBox(height: 14),
+            ],
             // Header row: status badge + total.
             Row(
               children: [
@@ -350,8 +451,9 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
                   Text(
                     '$_totalFcfa FCFA',
                     style: const TextStyle(
-                      fontSize: 15,
+                      fontSize: 16,
                       fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                       color: Color(0xFFF4665C),
                     ),
                   ),
@@ -378,7 +480,135 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
     );
   }
 
+  /// Amber banner: "the client proposed a new time" summary.
+  Widget _buildRescheduleBanner() {
+    final proposed = _proposedAt!;
+    final currentRaw = widget.booking['scheduled_at']?.toString();
+    final current = DateTime.tryParse(currentRaw ?? '') ??
+        proposed; // fall back to proposed
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFF4DE), Color(0xFFFFEFD0)],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x55FFB93F)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .75),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.update_rounded,
+                size: 19, color: Color(0xFFB57A00)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Reschedule request / Demande de report',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF7A5A00),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Proposed / Proposé : ${formatDate(proposed)} · ${formatTime(proposed)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF2A2730),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Current / Actuel : ${formatDate(current)} · ${formatTime(current)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Accept / Decline buttons for a pending reschedule request. Shown
+  /// instead of the regular status actions: deciding the move comes first.
+  Widget _buildRescheduleActions() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _counterBusy ? null : _counterProposal,
+                icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                label: const Text('Counter'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF9E6A00),
+                  side: const BorderSide(color: Color(0x55FFB93F)),
+                  backgroundColor: const Color(0x0DFFB93F),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed:
+                    _counterBusy ? null : () => _respondToReschedule(false),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: const Text('Decline'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF6E6A76),
+                  side: const BorderSide(color: Color(0x33000000)),
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white.withValues(alpha: .04)
+                          : Colors.grey.shade50,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed:
+                    _counterBusy ? null : () => _respondToReschedule(true),
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Accept'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildActions() {
+    // A pending reschedule request takes over the action area: deciding
+    // the proposed move comes before acting on the (old) slot.
+    if (_hasPendingReschedule) return _buildRescheduleActions();
     switch (_status) {
       case BookingStatus.confirmed:
         return _buildConfirmedActions();
@@ -475,8 +705,7 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
           backgroundColor: const Color(0xFF3FBF7F),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          textStyle:
-              const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -568,8 +797,8 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
               backgroundColor: const Color(0xFF3FBF7F),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              textStyle: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w700),
+              textStyle:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -597,20 +826,32 @@ class _BookingTrackerCardState extends State<BookingTrackerCard> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0x143FBF7F),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3FBF7F), Color(0xFF2E9E66)],
+        ),
         borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3FBF7F).withValues(alpha: .28),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle, color: Color(0xFF3FBF7F), size: 22),
+          Icon(Icons.check_circle, color: Colors.white, size: 22),
           SizedBox(width: 8),
           Text(
             'Session Completed',
             style: TextStyle(
               fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF2E9E66),
+              fontWeight: FontWeight.w800,
+              letterSpacing: .1,
+              color: Colors.white,
             ),
           ),
         ],
@@ -648,8 +889,8 @@ class _StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 6,
-            height: 6,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(color: _color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
@@ -657,8 +898,9 @@ class _StatusChip extends StatelessWidget {
             status.statusLabel,
             style: TextStyle(
               color: _color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: .03,
             ),
           ),
         ],
@@ -691,15 +933,13 @@ class _PulsingButton extends StatefulWidget {
 
 class _PulsingButtonState extends State<_PulsingButton>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))
-        ..repeat(reverse: true);
-  late final Animation<double> _glow =
-      Tween(begin: 0.0, end: 12.0).animate(
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1400))
+    ..repeat(reverse: true);
+  late final Animation<double> _glow = Tween(begin: 0.0, end: 12.0).animate(
     CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
   );
-  late final Animation<double> _scale =
-      Tween(begin: 1.0, end: 1.035).animate(
+  late final Animation<double> _scale = Tween(begin: 1.0, end: 1.035).animate(
     CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
   );
 

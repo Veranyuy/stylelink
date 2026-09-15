@@ -4,6 +4,13 @@ import 'package:intl/intl.dart';
 String formatFcfa(int amount) =>
     '${NumberFormat.decimalPattern('fr').format(amount)} FCFA';
 
+/// Provider "starting from" price: "from 8 000 FCFA", or a bilingual
+/// "Price on request" when the provider hasn't set any price (0).
+String formatPriceFrom(int priceFrom) {
+  if (priceFrom <= 0) return 'Price on request / Prix sur demande';
+  return 'from ${formatFcfa(priceFrom)}';
+}
+
 /// "Tue, Aug 18 · 10:30 AM" — used across booking cards.
 String formatBookingDateTime(DateTime dt) {
   final local = dt.toLocal();

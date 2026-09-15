@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links: https://stylelink.app/... opens the app directly
+	     (mirrors the Android App Links intent-filter for the same host).
+	     Requires the apple-app-site-association file to be served from
+	     https://stylelink.app/.well-known/ before the association works;
+	     until then, links open in Safari and the custom scheme
+	     stylelink://... remains the in-app path. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:stylelink.app</string>
+	</array>
+</dict>
+</plist>

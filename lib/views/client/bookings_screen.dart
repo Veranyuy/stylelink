@@ -6,7 +6,7 @@ import '../../models/service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/review_modal.dart';
-import '../widgets/reschedule_sheet.dart';
+import 'widgets/reschedule_booking_modal.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/state_views.dart';
 import '../widgets/status_badge.dart';
@@ -123,7 +123,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _rescheduleBooking(_BookingRow row) async {
-    final newTime = await RescheduleSheet.show(
+    final newTime = await RescheduleBookingModal.show(
       context,
       booking: row.booking,
       provider: row.provider,
@@ -131,7 +131,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
     if (newTime != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Rescheduled to ${formatBookingDateTime(newTime)}'),
+          content: Text(
+            'Rescheduled to ${formatBookingDateTime(newTime)} — pending '
+            'provider confirmation.',
+          ),
         ),
       );
       _retry();
@@ -169,7 +172,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
       await supabase.cancelBooking(booking.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Booking cancelled / Réservation annulée')),
+        const SnackBar(
+            content: Text('Booking cancelled / Réservation annulée')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -290,7 +294,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 ? () => _rescheduleBooking(rows[i])
                 : null,
             onMessage: () => _openChat(rows[i].provider),
-            onRate: rows[i].booking.status == BookingStatus.completed && !rows[i].isReviewed
+            onRate: rows[i].booking.status == BookingStatus.completed &&
+                    !rows[i].isReviewed
                 ? () => _rateBooking(rows[i])
                 : null,
           ),
@@ -377,11 +382,12 @@ class _BookingCard extends StatelessWidget {
             _detailRow(Icons.place_outlined, location),
             const SizedBox(height: 12),
             Row(
-              children: [                  Expanded(
-                    child: Text(
-                      row.services.isEmpty
-                          ? '${row.booking.serviceIds.length} service${row.booking.serviceIds.length == 1 ? '' : 's'}'
-                          : row.services.map((s) => s.name).join(' + '),
+              children: [
+                Expanded(
+                  child: Text(
+                    row.services.isEmpty
+                        ? '${row.booking.serviceIds.length} service${row.booking.serviceIds.length == 1 ? '' : 's'}'
+                        : row.services.map((s) => s.name).join(' + '),
                     style: TextStyle(
                       fontSize: 12.5,
                       color: Colors.grey.shade700,
@@ -484,9 +490,11 @@ class _BookingCard extends StatelessWidget {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle, size: 14, color: Color(0xFF3FBF7F)),
+                            Icon(Icons.check_circle,
+                                size: 14, color: Color(0xFF3FBF7F)),
                             SizedBox(width: 4),
-                            Text('Reviewed',
+                            Text(
+                              'Reviewed',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

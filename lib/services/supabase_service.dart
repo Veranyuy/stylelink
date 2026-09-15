@@ -211,6 +211,7 @@ class SupabaseService {
   }
 
   Future<void> signOut() => _db.auth.signOut();
+
   /// Delete the current user's account and all associated data.
   ///
   /// Cleans up rows from profiles, providers, services, bookings,
@@ -239,7 +240,8 @@ class SupabaseService {
         await _db.from(table).delete().eq(column, value);
       } catch (e, st) {
         // Table may not exist or RLS may block — continue cleanup.
-        Sentry.captureException(e, stackTrace: st,
+        Sentry.captureException(e,
+            stackTrace: st,
             hint: Hint.withMap({'operation': 'deleteAccount_$table'}));
       }
     }
@@ -252,7 +254,8 @@ class SupabaseService {
 
     // If the user is also a provider, clean up provider-specific data.
     try {
-      final provRows = await _db.from('providers').select('id').eq('user_id', uid);
+      final provRows =
+          await _db.from('providers').select('id').eq('user_id', uid);
       for (final row in provRows) {
         final provId = row['id']?.toString() ?? '';
         if (provId.isNotEmpty) {
@@ -264,7 +267,8 @@ class SupabaseService {
       await safeDelete('providers', 'user_id', uid);
     } catch (e, st) {
       // Provider cleanup is best-effort.
-      Sentry.captureException(e, stackTrace: st,
+      Sentry.captureException(e,
+          stackTrace: st,
           hint: Hint.withMap({'operation': 'deleteAccount_providers_cleanup'}));
     }
 
@@ -277,14 +281,14 @@ class SupabaseService {
     } catch (e, st) {
       // Fallback: the user may not have admin permissions — try the
       // standard sign-out path so at least the session is destroyed.
-      Sentry.captureException(e, stackTrace: st,
+      Sentry.captureException(e,
+          stackTrace: st,
           hint: Hint.withMap({'operation': 'deleteAccount_adminDeleteUser'}));
     }
 
     // 3. Sign out to clear local session state.
     await signOut();
   }
-
 
   /// Send a password reset email to [email].
   ///
@@ -375,7 +379,8 @@ class SupabaseService {
       });
     } catch (e, st) {
       debugPrint('ensureProfileExists: set_user_role RPC failed: $e');
-      Sentry.captureException(e, stackTrace: st,
+      Sentry.captureException(e,
+          stackTrace: st,
           hint: Hint.withMap({'operation': 'ensureProfileExists_RPC'}));
     }
 
@@ -393,7 +398,8 @@ class SupabaseService {
       }
     } catch (e, st) {
       debugPrint('ensureProfileExists: direct upsert failed: $e');
-      Sentry.captureException(e, stackTrace: st,
+      Sentry.captureException(e,
+          stackTrace: st,
           hint: Hint.withMap({'operation': 'ensureProfileExists_upsert'}));
     }
   }
@@ -424,7 +430,10 @@ class SupabaseService {
     String? category,
     int limit = 50,
   }) async {
-    var query = _db.from('providers').select('*, profiles!user_id(avatar_url)').eq('city', city);
+    var query = _db
+        .from('providers')
+        .select('*, profiles!user_id(avatar_url)')
+        .eq('city', city);
     if (category != null && category.isNotEmpty) {
       query = query.eq('category', category);
     }
@@ -463,7 +472,8 @@ class SupabaseService {
   }) async {
     final q = query?.trim().toLowerCase() ?? '';
 
-    var providerQuery = _db.from('providers').select('*, profiles!user_id(avatar_url)');
+    var providerQuery =
+        _db.from('providers').select('*, profiles!user_id(avatar_url)');
     if (city != null && city.isNotEmpty) {
       providerQuery = providerQuery.eq('city', city);
     }
@@ -586,16 +596,30 @@ class SupabaseService {
   Future<bool> checkProviderSlotAvailable({
     required String providerId,
     required DateTime scheduledAt,
+    String? excludeBookingId,
   }) async {
     try {
-      final rows = await _db
+      var query = _db
           .from('bookings')
           .select('id')
           .eq('provider_id', providerId)
           .eq('scheduled_at', scheduledAt.toUtc().toIso8601String())
-          .not('status', 'eq', 'cancelled')
+          .not('status', 'eq', 'cancelled');
+      if (excludeBookingId != null) {
+        query = query.neq('id', excludeBookingId);
+      }
+      // An open reschedule proposal also holds its proposed slot.
+      final rows = await query.limit(1);
+      if (rows.isNotEmpty) return false;
+
+      final proposals = await _db
+          .from('bookings')
+          .select('id')
+          .eq('provider_id', providerId)
+          .eq('proposed_scheduled_at', scheduledAt.toUtc().toIso8601String())
+          .eq('reschedule_status', 'pending')
           .limit(1);
-      return rows.isEmpty;
+      return proposals.isEmpty;
     } catch (_) {
       // If the check fails, allow the booking (the DB trigger will catch it).
       return true;
@@ -621,9 +645,16 @@ class SupabaseService {
               'client_id': clientId,
               'provider_id': providerId,
               'service_ids': serviceIds,
+              // The picked slot (e.g. Tue, Sep 15 · 10:00 AM) goes to
+              // scheduled_at only — a brand-new booking is never a proposal.
               'scheduled_at': scheduledAt.toUtc().toIso8601String(),
               'total_price_fcfa': totalPriceFcfa,
               'notes': notes,
+              // Explicit NULLs: protect against stray column defaults in the
+              // live DB violating bookings_reschedule_pairing_check, whose
+              // only insert-legal shape is (NULL, NULL).
+              'proposed_scheduled_at': null,
+              'reschedule_status': null,
             })
             .select()
             .single();
@@ -648,10 +679,7 @@ class SupabaseService {
       payload['responded_at'] = DateTime.now().toUtc().toIso8601String();
     }
 
-    await _db
-        .from('bookings')
-        .update(payload)
-        .eq('id', bookingId);
+    await _db.from('bookings').update(payload).eq('id', bookingId);
   }
 
   /// Live, ordered stream of a provider's bookings.
@@ -682,10 +710,8 @@ class SupabaseService {
   /// Total booking count for a client (used by profile stats pill).
   Future<int> fetchBookingCount(String clientId) async {
     try {
-      final data = await _db
-          .from('bookings')
-          .select('id')
-          .eq('client_id', clientId);
+      final data =
+          await _db.from('bookings').select('id').eq('client_id', clientId);
       return data.length;
     } catch (_) {
       return 0;
@@ -710,31 +736,47 @@ class SupabaseService {
   Future<void> cancelBooking(String bookingId) async {
     await _db
         .from('bookings')
-        .update({'status': BookingStatus.cancelled.name})
-        .eq('id', bookingId);
+        .update({'status': BookingStatus.cancelled.name}).eq('id', bookingId);
   }
 
-  /// Reschedule an upcoming booking to a new date/time.
+  /// Request a reschedule of an upcoming booking to a new date/time.
   ///
-  /// Only pending or confirmed bookings can be rescheduled. The new slot is
-  /// checked for conflicts before writing. Returns the updated [Booking].
+  /// Only pending or confirmed bookings can be rescheduled. The ORIGINAL
+  /// slot, status and price are all kept until the provider responds; the
+  /// proposed slot is stored in `proposed_scheduled_at` with
+  /// `reschedule_status = 'pending'`. The provider answers via
+  /// [respondToReschedule] (push notification fires off the
+  /// proposed_scheduled_at change). Returns the updated [Booking].
   Future<Booking> rescheduleBooking({
     required String bookingId,
     required DateTime newScheduledAt,
   }) async {
     return _captureAndRethrow(
       () async {
-        final row = await _db
-            .from('bookings')
-            .select()
-            .eq('id', bookingId)
-            .single();
+        final row =
+            await _db.from('bookings').select().eq('id', bookingId).single();
         final booking = Booking.fromJson(row);
 
-        // Verify the new slot is available for this provider.
+        // Only upcoming bookings may be rescheduled.
+        if (!booking.isUpcoming) {
+          throw Exception(
+            'Only pending or confirmed bookings can be rescheduled.',
+          );
+        }
+
+        // No double proposals: answer the open one first.
+        if (booking.hasPendingReschedule) {
+          throw Exception(
+            'A reschedule request is already awaiting a response. / Une demande de report attend déjà une réponse.',
+          );
+        }
+
+        // Verify the new slot is available for this provider (excluding this
+        // booking itself, which still occupies its original slot).
         final available = await checkProviderSlotAvailable(
           providerId: booking.providerId,
           scheduledAt: newScheduledAt,
+          excludeBookingId: booking.id,
         );
         if (!available) {
           throw Exception(
@@ -745,7 +787,11 @@ class SupabaseService {
         final updated = await _db
             .from('bookings')
             .update({
-              'scheduled_at': newScheduledAt.toUtc().toIso8601String(),
+              // Keep the original appointment, slot AND status untouched —
+              // only record the proposal. The provider answers it explicitly
+              // via respondToReschedule.
+              'proposed_scheduled_at': newScheduledAt.toUtc().toIso8601String(),
+              'reschedule_status': 'pending',
             })
             .eq('id', bookingId)
             .select()
@@ -753,6 +799,89 @@ class SupabaseService {
         return Booking.fromJson(updated);
       },
       'rescheduleBooking',
+    );
+  }
+
+  /// Provider answers a client's reschedule request.
+  ///
+  /// Accept: the booking moves to the proposed slot and returns to
+  /// "confirmed". Decline: the booking keeps its original slot and status,
+  /// and the request is marked "rejected". Both stamp `responded_at`.
+  /// Throws [StateError] when the booking has no pending reschedule request.
+  /// Returns the updated [Booking].
+  Future<Booking> respondToReschedule(
+    String bookingId,
+    bool accept,
+  ) async {
+    return _captureAndRethrow(
+      () async {
+        final row =
+            await _db.from('bookings').select().eq('id', bookingId).single();
+        final booking = Booking.fromJson(row);
+
+        // Pure decision table (unit-tested): validates the request and
+        // produces the exact fields to write.
+        final decision = resolveRescheduleResponse(
+          booking: booking,
+          accept: accept,
+        );
+
+        final updated = await _db
+            .from('bookings')
+            .update(decision.updates)
+            .eq('id', bookingId)
+            .select()
+            .single();
+        return Booking.fromJson(updated);
+      },
+      'respondToReschedule',
+    );
+  }
+
+  /// Provider COUNTERS with a different time: on a pending new booking or a
+  /// client reschedule request, replaces/sets the proposal with the
+  /// provider's slot. The original appointment stays untouched; the client
+  /// is notified via the webhook (proposed_scheduled_at change) and can
+  /// accept it from their side.
+  /// Returns the updated [Booking].
+  Future<Booking> counterBooking({
+    required String bookingId,
+    required DateTime proposedAt,
+  }) async {
+    return _captureAndRethrow(
+      () async {
+        final row =
+            await _db.from('bookings').select().eq('id', bookingId).single();
+        final booking = Booking.fromJson(row);
+
+        if (!booking.isUpcoming) {
+          throw Exception('Only upcoming bookings can be countered.');
+        }
+
+        // The counter slot must be free (excluding this booking itself).
+        final available = await checkProviderSlotAvailable(
+          providerId: booking.providerId,
+          scheduledAt: proposedAt,
+          excludeBookingId: booking.id,
+        );
+        if (!available) {
+          throw Exception(
+            'This time slot is no longer available. / Ce créneau n\'est plus disponible.',
+          );
+        }
+
+        final updated = await _db
+            .from('bookings')
+            .update({
+              'proposed_scheduled_at': proposedAt.toUtc().toIso8601String(),
+              'reschedule_status': 'pending',
+            })
+            .eq('id', bookingId)
+            .select()
+            .single();
+        return Booking.fromJson(updated);
+      },
+      'counterBooking',
     );
   }
 
@@ -769,9 +898,7 @@ class SupabaseService {
         .from('favorites')
         .stream(primaryKey: ['id'])
         .eq('user_id', userId)
-        .map((rows) => rows
-            .map((r) => r['provider_id'].toString())
-            .toSet());
+        .map((rows) => rows.map((r) => r['provider_id'].toString()).toSet());
   }
 
   /// Persist a favorite (upsert is idempotent).
@@ -799,10 +926,8 @@ class SupabaseService {
 
   /// Favorited providers for the given user (for the Profile favorites list).
   Future<List<Provider>> fetchFavoriteProviders(String userId) async {
-    final rows = await _db
-        .from('favorites')
-        .select('provider_id')
-        .eq('user_id', userId);
+    final rows =
+        await _db.from('favorites').select('provider_id').eq('user_id', userId);
     final ids = rows.map((r) => r['provider_id'].toString()).toList();
     return fetchProvidersByIds(ids);
   }
@@ -1230,9 +1355,7 @@ class SupabaseService {
         .from('blocked_providers')
         .stream(primaryKey: ['id'])
         .eq('user_id', userId)
-        .map((rows) => rows
-            .map((r) => r['provider_id'].toString())
-            .toSet());
+        .map((rows) => rows.map((r) => r['provider_id'].toString()).toSet());
   }
 
   /// Check if a specific provider is blocked.
@@ -1280,8 +1403,10 @@ class SupabaseService {
         'comment': comment,
       });
     } catch (e, st) {
-      Sentry.captureException(e, stackTrace: st,
-          hint: Hint.withMap({'operation': 'submitReview', 'booking_id': bookingId}));
+      Sentry.captureException(e,
+          stackTrace: st,
+          hint: Hint.withMap(
+              {'operation': 'submitReview', 'booking_id': bookingId}));
       final msg = e.toString();
       // Provide a user-friendly message for common DB errors.
       if (msg.contains('relation "public.reviews" does not exist') ||
@@ -1328,7 +1453,8 @@ class SupabaseService {
   }) async {
     return await _db
         .from('reviews')
-        .select('id, rating, comment, created_at, client_id, profiles!client_id(full_name, avatar_url)')
+        .select(
+            'id, rating, comment, created_at, client_id, profiles!client_id(full_name, avatar_url)')
         .eq('provider_id', providerId)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -1378,7 +1504,8 @@ class SupabaseService {
   }
 
   /// Total profile views for a provider within an optional date range.
-  Future<int> getProfileViewCount(String providerId, {
+  Future<int> getProfileViewCount(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1395,7 +1522,8 @@ class SupabaseService {
   }
 
   /// Total search impressions for a provider within an optional date range.
-  Future<int> getSearchImpressionCount(String providerId, {
+  Future<int> getSearchImpressionCount(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1412,7 +1540,8 @@ class SupabaseService {
   }
 
   /// Booking conversion rate (completed bookings / views) as a percentage.
-  Future<double> getConversionRate(String providerId, {
+  Future<double> getConversionRate(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1429,7 +1558,8 @@ class SupabaseService {
   }
 
   /// Daily profile views as [{day: "2025-01-15", count: 12}, ...].
-  Future<List<Map<String, dynamic>>> getDailyViews(String providerId, {
+  Future<List<Map<String, dynamic>>> getDailyViews(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1462,7 +1592,8 @@ class SupabaseService {
   }
 
   /// Average response time in minutes for a provider within a date range.
-  Future<double> getAvgResponseTime(String providerId, {
+  Future<double> getAvgResponseTime(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1479,7 +1610,8 @@ class SupabaseService {
   }
 
   /// Response rate: percentage of bookings that received a response.
-  Future<double> getResponseRate(String providerId, {
+  Future<double> getResponseRate(
+    String providerId, {
     DateTime? start,
     DateTime? end,
   }) async {
@@ -1495,4 +1627,3 @@ class SupabaseService {
     }
   }
 }
-

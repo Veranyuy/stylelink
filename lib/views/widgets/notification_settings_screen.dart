@@ -335,9 +335,7 @@ class _CategoryTile extends StatelessWidget {
               child: Icon(
                 category.icon,
                 size: 18,
-                color: enabled
-                    ? const Color(0xFFF4665C)
-                    : Colors.grey.shade400,
+                color: enabled ? const Color(0xFFF4665C) : Colors.grey.shade400,
               ),
             ),
             const SizedBox(width: 12),

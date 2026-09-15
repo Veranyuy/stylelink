@@ -8,6 +8,7 @@ import '../../controllers/service_tracker_controller.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/booking_tracker_card.dart';
+import '../../widgets/counter_proposal_sheet.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/state_views.dart';
 import '../widgets/status_badge.dart';
@@ -81,8 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Stream<List<_EnrichedBooking>> _buildStream(String providerId) {
     return supabase.watchBookingsForProvider(providerId).asyncMap(
       (bookings) async {
-        final sorted = [...bookings]
-          ..sort((a, b) => (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
+        final sorted = [...bookings]..sort((a, b) =>
+            (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)));
 
         final clientIds = sorted.map((b) => b.clientId).toSet().toList();
         final serviceIds = sorted.expand((b) => b.serviceIds).toSet().toList();
@@ -148,6 +149,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  /// Provider counters a booking (new request or reschedule proposal) with
+  /// their own slot: opens the date/time picker and writes the proposal.
+  Future<void> _counterBooking(Booking booking) async {
+    final proposed = await showCounterProposalSheet(
+      context,
+      initial: booking.proposedScheduledAt ?? booking.scheduledAt,
+    );
+    if (proposed == null || !mounted) return;
+
+    try {
+      await supabase.counterBooking(
+        bookingId: booking.id,
+        proposedAt: proposed,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Counter proposal sent / Contre-proposition envoyée — '
+            '${formatBookingDateTime(proposed)}',
+          ),
+          backgroundColor: const Color(0xFF2E7D32),
+        ),
+      );
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not send counter proposal: $e'),
+          backgroundColor: const Color(0xFFB3261E),
+        ),
+      );
+    }
+  }
+
   /// Rebuild the realtime stream so enriched data (clients, services)
   /// and metric cards refresh after a tracker stage change.
   Future<void> _toggleAvailability() async {
@@ -159,7 +196,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (!mounted) return;
       setState(() => _isAvailable = !newAvailable);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update availability: $e'), backgroundColor: const Color(0xFFB3261E)),
+        SnackBar(
+            content: Text('Could not update availability: $e'),
+            backgroundColor: const Color(0xFFB3261E)),
       );
     }
   }
@@ -241,32 +280,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               Text(
                                 provider?.businessName ?? 'Loading…',
                                 style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.3,
+                                  color: Color(0xFF2A2730),
                                 ),
                               ),
+                              const SizedBox(height: 2),
                               Text(
                                 provider == null
                                     ? 'Checking profile…'
                                     : '${provider.category} · ${provider.city}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF8B8694),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        _OnlinePill(isAvailable: _isAvailable, onToggle: _toggleAvailability),
+                        _OnlinePill(
+                            isAvailable: _isAvailable,
+                            onToggle: _toggleAvailability),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Upcoming Bookings / Réservations',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    const SizedBox(height: 22),
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0xFFF4665C), Color(0xFF9E86E6)],
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        const Text(
+                          'Upcoming Bookings / Réservations',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                            color: Color(0xFF2A2730),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -328,6 +392,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onAccept: (b) => _setStatus(b, BookingStatus.confirmed),
           onCancel: (b) => _setStatus(b, BookingStatus.cancelled),
           onReject: (b) => _rejectBooking(b),
+          onCounter: (b) => _counterBooking(b),
           onMessage: _openChat,
           onRefresh: _refresh,
         );
@@ -343,6 +408,7 @@ class _DashboardBody extends StatelessWidget {
     required this.onAccept,
     required this.onCancel,
     required this.onReject,
+    required this.onCounter,
     required this.onMessage,
     required this.onRefresh,
   });
@@ -351,6 +417,7 @@ class _DashboardBody extends StatelessWidget {
   final ValueChanged<Booking> onAccept;
   final ValueChanged<Booking> onCancel;
   final ValueChanged<Booking> onReject;
+  final ValueChanged<Booking> onCounter;
   final ValueChanged<_EnrichedBooking> onMessage;
   final VoidCallback onRefresh;
 
@@ -367,7 +434,8 @@ class _DashboardBody extends StatelessWidget {
 
     // Revenue: sum of confirmed, arrived, in-progress, and completed bookings.
     final revenue = rows
-        .where((r) => r.booking.isUpcoming || r.booking.status == BookingStatus.completed)
+        .where((r) =>
+            r.booking.isUpcoming || r.booking.status == BookingStatus.completed)
         .fold<int>(0, (sum, r) => sum + r.booking.totalPriceFcfa);
 
     return ListView(
@@ -375,22 +443,25 @@ class _DashboardBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _MetricCard(
-              label: "Today's Clients / Clients Aujourd'hui",
+              label: "Today's Clients",
               value: '${upcoming.length}',
               sub: upcoming.isEmpty ? 'No bookings today' : 'Bookings today',
+              icon: Icons.people_outline_rounded,
             ),
             const SizedBox(width: 12),
             _MetricCard(
-              label: 'Total Revenue / Revenu',
+              label: 'Total Revenue',
               value: formatFcfa(revenue),
               sub: 'Confirmed + completed',
               coral: true,
+              icon: Icons.payments_outlined,
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         if (rows.isEmpty)
           const EmptyState(
             icon: Icons.event_available_outlined,
@@ -407,6 +478,7 @@ class _DashboardBody extends StatelessWidget {
                 onAccept: () => onAccept(row.booking),
                 onCancel: () => onCancel(row.booking),
                 onReject: () => onReject(row.booking),
+                onCounter: () => onCounter(row.booking),
                 onMessage: () => onMessage(row),
               ),
             // Confirmed / arrived / in-progress / completed: tracker card.
@@ -429,42 +501,87 @@ class _MetricCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.sub,
+    required this.icon,
     this.coral = false,
   });
 
   final String label;
   final String value;
   final String sub;
+  final IconData icon;
   final bool coral;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = coral ? const Color(0xFFF4665C) : const Color(0xFF2A2730);
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x14000000)),
+          color: isDark ? const Color(0xFF242030) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: coral
+                ? const Color(0x22F4665C)
+                : (isDark ? Colors.white10 : const Color(0x0F000000)),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: coral
+                        ? const Color(0x14F4665C)
+                        : (isDark ? Colors.white10 : const Color(0xFFF2EFF6)),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: coral
+                        ? const Color(0xFFF4665C)
+                        : const Color(0xFF6E6A76),
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_outward_rounded,
+                  size: 14,
+                  color: isDark ? Colors.white24 : Colors.grey.shade300,
+                ),
+              ],
+            ),
+            const Spacer(),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .04,
+                color: Colors.grey.shade500,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 3),
             Text(
               value,
               style: TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w800,
-                color: coral ? const Color(0xFFF4665C) : null,
+                letterSpacing: -0.3,
+                color: accent,
               ),
             ),
             const SizedBox(height: 2),
@@ -486,6 +603,7 @@ class _PendingBookingCard extends StatelessWidget {
     required this.onAccept,
     required this.onCancel,
     required this.onReject,
+    required this.onCounter,
     required this.onMessage,
   });
 
@@ -493,6 +611,7 @@ class _PendingBookingCard extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onCancel;
   final VoidCallback onReject;
+  final VoidCallback onCounter;
   final VoidCallback onMessage;
 
   @override
@@ -501,12 +620,20 @@ class _PendingBookingCard extends StatelessWidget {
     final client = row.client;
     final diff = booking.scheduledAt.difference(DateTime.now());
 
-    return Card(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFFF4665C), width: 1.4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF242030) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0x44F4665C), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF4665C).withValues(alpha: .10),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(15),
@@ -541,6 +668,7 @@ class _PendingBookingCard extends StatelessWidget {
                             : 'In ${diff.inHours} hrs',
                     style: TextStyle(
                       fontSize: 12,
+                      fontWeight: FontWeight.w500,
                       color: Colors.grey.shade600,
                     ),
                   ),
@@ -560,8 +688,10 @@ class _PendingBookingCard extends StatelessWidget {
             Text(
               client?.fullName ?? 'Client',
               style: const TextStyle(
-                fontSize: 15.5,
-                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.2,
+                color: Color(0xFF2A2730),
               ),
             ),
             const SizedBox(height: 3),
@@ -575,7 +705,7 @@ class _PendingBookingCard extends StatelessWidget {
             Text(
               formatFcfa(booking.totalPriceFcfa),
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFFF4665C),
               ),
@@ -588,9 +718,25 @@ class _PendingBookingCard extends StatelessWidget {
                     onPressed: onAccept,
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFFF4665C),
+                      foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
+                      textStyle: const TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w800),
                     ),
                     child: const Text('Accept / Accepter'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: onCounter,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF9E6A00),
+                      side: const BorderSide(color: Color(0x55FFB93F)),
+                      backgroundColor: const Color(0x0DFFB93F),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Counter'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -605,19 +751,21 @@ class _PendingBookingCard extends StatelessWidget {
                     child: const Text('Reject / Refuser'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onCancel,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF6E6A76),
-                      side: const BorderSide(color: Color(0x33000000)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                ),
               ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: onCancel,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF6E6A76),
+                side: const BorderSide(color: Color(0x33000000)),
+                backgroundColor: isDark
+                    ? Colors.white.withValues(alpha: .04)
+                    : Colors.grey.shade50,
+                minimumSize: const Size.fromHeight(38),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              child: const Text('Cancel booking'),
             ),
           ],
         ),
@@ -640,11 +788,21 @@ class _OnlinePill extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: isAvailable ? const Color(0x143FBF7F) : const Color(0x14FF9F45),
+          color:
+              isAvailable ? const Color(0x143FBF7F) : const Color(0x14FF9F45),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: isAvailable ? const Color(0x333FBF7F) : const Color(0x33FF9F45),
+            color:
+                isAvailable ? const Color(0x333FBF7F) : const Color(0x33FF9F45),
           ),
+          boxShadow: [
+            if (isAvailable)
+              BoxShadow(
+                color: const Color(0xFF3FBF7F).withValues(alpha: .18),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+          ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -654,7 +812,9 @@ class _OnlinePill extends StatelessWidget {
               width: 8,
               height: 8,
               decoration: BoxDecoration(
-                color: isAvailable ? const Color(0xFF3FBF7F) : const Color(0xFFFF9F45),
+                color: isAvailable
+                    ? const Color(0xFF3FBF7F)
+                    : const Color(0xFFFF9F45),
                 shape: BoxShape.circle,
               ),
             ),
@@ -664,7 +824,9 @@ class _OnlinePill extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
-                color: isAvailable ? const Color(0xFF2E9E66) : const Color(0xFFCC8030),
+                color: isAvailable
+                    ? const Color(0xFF2E9E66)
+                    : const Color(0xFFCC8030),
               ),
             ),
           ],
@@ -686,11 +848,18 @@ class _Avatar extends StatelessWidget {
       width: 46,
       height: 46,
       clipBehavior: Clip.antiAlias,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Color(0xFFFF8B7B), Color(0xFF9E86E6)],
         ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF9E86E6).withValues(alpha: .35),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: avatarUrl != null && avatarUrl.isNotEmpty
           ? Image.network(
@@ -816,7 +985,8 @@ class _RejectDialogState extends State<_RejectDialog> {
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: 'Type a reason… / Tapez une raison…',
-                hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade400),
+                hintStyle:
+                    TextStyle(fontSize: 12.5, color: Colors.grey.shade400),
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 border: OutlineInputBorder(

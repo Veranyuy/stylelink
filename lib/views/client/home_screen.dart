@@ -130,13 +130,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final service = SupabaseService.instance;
     final category = _categories[_selectedCategory];
     setState(() {
-      _providersFuture = service.searchProviders(
+      _providersFuture = service
+          .searchProviders(
         query: _query,
         category: (category ?? '').isEmpty ? null : category,
         city: _cityFilter,
         maxPrice: _maxPrice,
         limit: 30,
-      ).then((providers) {
+      )
+          .then((providers) {
         // Record search impressions for analytics (fire-and-forget).
         if (providers.isNotEmpty) {
           service.recordSearchImpressions(
@@ -211,7 +213,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final wasFavorite = _favoriteIds.contains(provider.id);
     // Optimistic update; the realtime stream reconciles any drift.
     setState(() {
-      wasFavorite ? _favoriteIds.remove(provider.id) : _favoriteIds.add(provider.id);
+      wasFavorite
+          ? _favoriteIds.remove(provider.id)
+          : _favoriteIds.add(provider.id);
     });
     try {
       if (wasFavorite) {
@@ -226,7 +230,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        wasFavorite ? _favoriteIds.add(provider.id) : _favoriteIds.remove(provider.id);
+        wasFavorite
+            ? _favoriteIds.add(provider.id)
+            : _favoriteIds.remove(provider.id);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -320,8 +326,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const EmptyState(
                     icon: Icons.storefront_outlined,
                     title: 'No professionals found',
-                    subtitle:
-                        'Try another category, city or search term.\n'
+                    subtitle: 'Try another category, city or search term.\n'
                         'Aucun professionnel trouvé.',
                   );
                 }
@@ -729,8 +734,8 @@ class _ProviderCard extends StatelessWidget {
                                     parent: animation,
                                     curve: Curves.easeOutBack),
                               ),
-                              child:
-                                  FadeTransition(opacity: animation, child: child),
+                              child: FadeTransition(
+                                  opacity: animation, child: child),
                             ),
                             child: Icon(
                               favorited
@@ -844,27 +849,38 @@ class _ProviderCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.right,
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
+                  // "from 8 000 FCFA" — or "Price on request" when the
+                  // provider hasn't set any price (priceFrom = 0).
                   Row(
                     children: [
-                      Text(
-                        'starting from',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
+                      if (provider.priceFrom > 0)
+                        Text(
+                          'starting from',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade600),
+                        ),
                       const Spacer(),
-                      Text(
-                        formatFcfa(provider.priceFrom),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF2A2730),
+                      Flexible(
+                        child: Text(
+                          formatPriceFrom(provider.priceFrom),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: provider.priceFrom > 0 ? 16 : 12.5,
+                            fontWeight: provider.priceFrom > 0
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: provider.priceFrom > 0
+                                ? const Color(0xFF2A2730)
+                                : Colors.grey.shade600,
+                          ),
                         ),
                       ),
                     ],

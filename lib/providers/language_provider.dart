@@ -104,7 +104,8 @@ const Map<String, String> _en = {
   'sign_out_confirm_body': 'You will be returned to the sign-in screen.',
   'delete_account': 'Delete Account',
   'delete_account_confirm_title': 'Delete Account?',
-  'delete_account_confirm_body': 'This action is permanent and cannot be undone. All your data will be deleted.',
+  'delete_account_confirm_body':
+      'This action is permanent and cannot be undone. All your data will be deleted.',
   'cancel': 'Cancel',
   'email': 'Email',
   'password': 'Password',
@@ -144,7 +145,8 @@ const Map<String, String> _en = {
   'city': 'City',
   'city_hint': 'City / Ville',
   'start_offering': 'Start Offering Services / Commencer',
-  'you_are_now_provider': 'You are now a provider! Use the toggle in the top bar to switch to Provider Mode.',
+  'you_are_now_provider':
+      'You are now a provider! Use the toggle in the top bar to switch to Provider Mode.',
 
   // ── Provider Profile ──
   'verified_stylist': 'Verified Stylist',
@@ -162,7 +164,8 @@ const Map<String, String> _en = {
   'portfolio': 'Portfolio',
   'portfolio_sub': 'Réalisations',
   'no_business': 'No business listed yet',
-  'no_business_sub': 'Create your listing to start receiving bookings.\nCréez votre fiche pour recevoir des réservations.',
+  'no_business_sub':
+      'Create your listing to start receiving bookings.\nCréez votre fiche pour recevoir des réservations.',
   'list_my_business': 'List My Business',
   'manage_portfolio_empty': 'No work samples uploaded yet',
   'manage_portfolio_empty_sub': 'Add up to 7 photos of your best work.',
@@ -172,7 +175,8 @@ const Map<String, String> _en = {
   'spots_left': 'spots left',
   'showcase_best_work': 'Showcase your best work.',
   'remove_photo': 'Remove photo?',
-  'remove_photo_sub': 'This will permanently delete the photo from your portfolio.',
+  'remove_photo_sub':
+      'This will permanently delete the photo from your portfolio.',
 
   // ── Home / Service Feed ──
   'find_your_stylist': 'Find Your Stylist',
@@ -217,7 +221,8 @@ const Map<String, String> _en = {
   'provider_en_route': 'Provider is En Route',
   'provider_arrived': 'Provider Has Arrived!',
   'prepare_for_service': 'Prepare for service',
-  'share_code': 'Share this code with your provider upon arrival to start the session.',
+  'share_code':
+      'Share this code with your provider upon arrival to start the session.',
   'service_underway': 'Service Underway',
   'tap_to_rate': 'Tap to rate your experience',
   'call': 'Call',
@@ -299,7 +304,8 @@ const Map<String, String> _fr = {
   'sign_out': 'Se déconnecter',
   'delete_account': 'Supprimer le compte',
   'delete_account_confirm_title': 'Supprimer le compte ?',
-  'delete_account_confirm_body': 'Cette action est irréversible. Toutes vos données seront supprimées.',
+  'delete_account_confirm_body':
+      'Cette action est irréversible. Toutes vos données seront supprimées.',
   'sign_out_confirm_title': 'Se déconnecter ?',
   'sign_out_confirm_body': 'Vous retournerez à l\'écran de connexion.',
   'cancel': 'Annuler',
@@ -341,7 +347,8 @@ const Map<String, String> _fr = {
   'city': 'Ville',
   'city_hint': 'Ville',
   'start_offering': 'Commencer à Proposer',
-  'you_are_now_provider': 'Vous êtes maintenant prestataire ! Utilisez le bouton dans la barre du haut pour basculer.',
+  'you_are_now_provider':
+      'Vous êtes maintenant prestataire ! Utilisez le bouton dans la barre du haut pour basculer.',
 
   // ── Provider Profile ──
   'verified_stylist': 'Esthéticien Vérifié',
@@ -362,14 +369,16 @@ const Map<String, String> _fr = {
   'no_business_sub': 'Créez votre fiche pour recevoir des réservations.',
   'list_my_business': 'Inscrire Mon Activité',
   'manage_portfolio_empty': 'Aucun exemple de travail',
-  'manage_portfolio_empty_sub': 'Ajoutez jusqu\'à 7 photos de votre meilleur travail.',
+  'manage_portfolio_empty_sub':
+      'Ajoutez jusqu\'à 7 photos de votre meilleur travail.',
   'add_work_photo': 'Ajouter une Photo',
   'uploading': 'Téléversement…',
   'max_capacity': 'Capacité maximale atteinte.',
   'spots_left': 'places restantes',
   'showcase_best_work': 'Présentez votre meilleur travail.',
   'remove_photo': 'Supprimer la photo ?',
-  'remove_photo_sub': 'Cette photo sera définitivement supprimée de votre portfolio.',
+  'remove_photo_sub':
+      'Cette photo sera définitivement supprimée de votre portfolio.',
 
   // ── Home / Service Feed ──
   'find_your_stylist': 'Trouvez Votre Coiffeur',
@@ -414,7 +423,8 @@ const Map<String, String> _fr = {
   'provider_en_route': 'Le Prestataire Est en Route',
   'provider_arrived': 'Le Prestataire Est Arrivé !',
   'prepare_for_service': 'Préparez-vous pour le service',
-  'share_code': 'Partagez ce code avec votre prestataire à son arrivée pour démarrer la session.',
+  'share_code':
+      'Partagez ce code avec votre prestataire à son arrivée pour démarrer la session.',
   'service_underway': 'Service en Cours',
   'tap_to_rate': 'Appuyez pour évaluer votre expérience',
   'call': 'Appeler',
@@ -483,8 +493,7 @@ class LanguageScope extends InheritedWidget {
   final LanguageProvider provider;
 
   static LanguageProvider of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<LanguageScope>();
+    final scope = context.dependOnInheritedWidgetOfExactType<LanguageScope>();
     assert(scope != null, 'No LanguageScope found in context');
     return scope!.provider;
   }

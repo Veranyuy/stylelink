@@ -74,8 +74,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
   List<Service> get _selectedServices =>
       _loaded.where((s) => _selectedIds.contains(s.id)).toList();
 
-  int get _totalFcfa =>
-      _selectedServices.fold(0, (sum, s) => sum + s.price);
+  int get _totalFcfa => _selectedServices.fold(0, (sum, s) => sum + s.price);
 
   void _toggleService(Service service) {
     setState(() {
@@ -120,7 +119,8 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
       if (!available && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('This time slot is no longer available. Please pick another.'),
+            content: Text(
+                'This time slot is no longer available. Please pick another.'),
             backgroundColor: Color(0xFFB3261E),
             duration: Duration(seconds: 4),
           ),
@@ -228,7 +228,8 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
     final reason = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.flag_outlined, color: Color(0xFFE5484D), size: 36),
+        icon:
+            const Icon(Icons.flag_outlined, color: Color(0xFFE5484D), size: 36),
         title: const Text('Report / Block'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -239,9 +240,11 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
               style: const TextStyle(fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 16),
-            const _ReportReasonChip(label: 'Inappropriate content', value: 'inappropriate'),
+            const _ReportReasonChip(
+                label: 'Inappropriate content', value: 'inappropriate'),
             const SizedBox(height: 8),
-            const _ReportReasonChip(label: 'Spam or fake profile', value: 'spam'),
+            const _ReportReasonChip(
+                label: 'Spam or fake profile', value: 'spam'),
             const SizedBox(height: 8),
             const _ReportReasonChip(label: 'Other', value: 'other'),
           ],
@@ -266,7 +269,8 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
           content: Text('${provider.businessName} blocked.'),
           action: SnackBarAction(
             label: 'Undo',
-            onPressed: () => SupabaseService.instance.unblockProvider(provider.id),
+            onPressed: () =>
+                SupabaseService.instance.unblockProvider(provider.id),
           ),
         ),
       );
@@ -368,8 +372,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
             side: const BorderSide(color: Color(0x14000000)),
           ),
           child: ListTile(
-            leading:
-                const Icon(Icons.event_outlined, color: Color(0xFFF4665C)),
+            leading: const Icon(Icons.event_outlined, color: Color(0xFFF4665C)),
             title: Text(
               _scheduledAt == null
                   ? 'Pick a date and time / Choisir une date et heure'
@@ -520,8 +523,7 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
                     'Reviews will appear here once clients rate this provider.',
               )
             else
-              for (final review in reviews)
-                _ReviewCard(review: review),
+              for (final review in reviews) _ReviewCard(review: review),
           ],
         );
       },
@@ -541,7 +543,8 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
               Text(
                 provider.businessName,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                style:
+                    const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 3),
               Text(
@@ -561,7 +564,8 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.schedule_outlined, size: 14, color: Color(0xFFFF9F45)),
+                Icon(Icons.schedule_outlined,
+                    size: 14, color: Color(0xFFFF9F45)),
                 SizedBox(width: 4),
                 Text(
                   'Busy',
@@ -760,8 +764,14 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
                             fontSize: 11, color: Colors.grey.shade600),
                       ),
                       Text(
-                        hasSelection ? formatFcfa(_totalFcfa) : '—',
-                        style: const TextStyle(
+                        // "Price on request" when selected services carry
+                        // no price (total = 0); "—" before any selection.
+                        !hasSelection
+                            ? '—'
+                            : _totalFcfa <= 0
+                                ? 'Price on request / Prix sur demande'
+                                : formatFcfa(_totalFcfa),
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFFF4665C),
@@ -854,9 +864,8 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
           orElse: () => _days.first,
         );
 
-  late TimeOfDay? _selectedTime = widget.initial == null
-      ? null
-      : TimeOfDay.fromDateTime(widget.initial!);
+  late TimeOfDay? _selectedTime =
+      widget.initial == null ? null : TimeOfDay.fromDateTime(widget.initial!);
 
   /// Day abbreviation for the currently selected day ("Mon"…"Sun").
   String get _selectedDayAbbr {
@@ -950,9 +959,7 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(14),
-                        color: active
-                            ? const Color(0xFFF4665C)
-                            : Colors.white,
+                        color: active ? const Color(0xFFF4665C) : Colors.white,
                         border: Border.all(
                           color: active
                               ? const Color(0xFFF4665C)
@@ -1014,15 +1021,18 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.schedule_outlined, size: 32, color: Colors.grey.shade400),
+                      Icon(Icons.schedule_outlined,
+                          size: 32, color: Colors.grey.shade400),
                       const SizedBox(height: 8),
                       Text(
                         'Provider closed on ${_weekday(_selectedDay)}',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey.shade600),
                       ),
                       Text(
                         'Choisissez un autre jour.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500),
                       ),
                     ],
                   ),
@@ -1046,8 +1056,7 @@ class _SlotPickerSheetState extends State<_SlotPickerSheet> {
                   for (final slot in _slots)
                     _TimeChip(
                       time: slot,
-                      selected:
-                          _selectedTime?.hour == slot.hour &&
+                      selected: _selectedTime?.hour == slot.hour &&
                           _selectedTime?.minute == slot.minute,
                       onTap: () => setState(() => _selectedTime = TimeOfDay(
                             hour: slot.hour,
@@ -1324,14 +1333,16 @@ class _HeroHeader extends StatelessWidget {
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.more_vert, size: 18, color: Color(0xFF2A2730)),
+                  child: const Icon(Icons.more_vert,
+                      size: 18, color: Color(0xFF2A2730)),
                 ),
                 itemBuilder: (context) => const [
                   PopupMenuItem(
                     value: 'report',
                     child: Row(
                       children: [
-                        Icon(Icons.flag_outlined, size: 18, color: Color(0xFFE5484D)),
+                        Icon(Icons.flag_outlined,
+                            size: 18, color: Color(0xFFE5484D)),
                         SizedBox(width: 10),
                         Text('Report / Block'),
                       ],
@@ -1469,10 +1480,13 @@ class _ReviewCard extends StatelessWidget {
     final createdAt = review['created_at']?.toString();
     // Extract joined profile data.
     final profile = review['profiles'];
-    final String clientName = (profile != null && profile['full_name'] != null && profile['full_name'].toString().isNotEmpty)
+    final String clientName = (profile != null &&
+            profile['full_name'] != null &&
+            profile['full_name'].toString().isNotEmpty)
         ? profile['full_name'].toString()
         : '';
-    final String? avatarUrl = profile != null ? profile['avatar_url']?.toString() : null;
+    final String? avatarUrl =
+        profile != null ? profile['avatar_url']?.toString() : null;
     final clientId = review['client_id']?.toString();
 
     // Parse the timestamp for display.
@@ -1514,7 +1528,9 @@ class _ReviewCard extends StatelessWidget {
                     : null,
                 child: avatarUrl == null || avatarUrl.isEmpty
                     ? Text(
-                        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : '?',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -1555,9 +1571,7 @@ class _ReviewCard extends StatelessWidget {
             children: [
               for (var i = 0; i < 5; i++)
                 Icon(
-                  i < rating
-                      ? Icons.star_rounded
-                      : Icons.star_border_rounded,
+                  i < rating ? Icons.star_rounded : Icons.star_border_rounded,
                   size: 17,
                   color: i < rating
                       ? const Color(0xFFFFB93F)
@@ -1594,8 +1608,18 @@ class _ReviewCard extends StatelessWidget {
 
   String _monthShort(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return months[(month - 1).clamp(0, 11)];
   }

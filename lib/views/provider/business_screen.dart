@@ -134,7 +134,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Business saved / Entreprise enregistrée')),
+        const SnackBar(
+            content: Text('Business saved / Entreprise enregistrée')),
       );
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -242,7 +243,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
     final hh = picked.hour.toString().padLeft(2, '0');
     final mm = picked.minute.toString().padLeft(2, '0');
     setState(() {
-      final start = isStart ? '$hh:$mm' : (parts.isNotEmpty ? parts[0] : '09:00');
+      final start =
+          isStart ? '$hh:$mm' : (parts.isNotEmpty ? parts[0] : '09:00');
       final end = isStart ? (parts.length > 1 ? parts[1] : '19:00') : '$hh:$mm';
       _hours[day] = '$start-$end';
     });
@@ -550,15 +552,15 @@ class _BusinessScreenState extends State<BusinessScreen> {
             width: 44,
             child: Text(
               day,
-              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+              style:
+                  const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
             ),
           ),
           Switch(
             value: open,
             activeTrackColor: const Color(0xFFF4665C),
             onChanged: (v) => setState(() {
-              _hours[day] =
-                  v ? (window ?? '09:00-19:00') : null;
+              _hours[day] = v ? (window ?? '09:00-19:00') : null;
             }),
           ),
           const SizedBox(width: 6),
@@ -566,12 +568,14 @@ class _BusinessScreenState extends State<BusinessScreen> {
             child: open
                 ? Row(
                     children: [
-                      _timeButton(day, isStart: true, label: window.split('-').first),
+                      _timeButton(day,
+                          isStart: true, label: window.split('-').first),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6),
                         child: Text('–'),
                       ),
-                      _timeButton(day, isStart: false, label: window.split('-').last),
+                      _timeButton(day,
+                          isStart: false, label: window.split('-').last),
                     ],
                   )
                 : Text(
@@ -587,7 +591,8 @@ class _BusinessScreenState extends State<BusinessScreen> {
     );
   }
 
-  Widget _timeButton(String day, {required bool isStart, required String label}) {
+  Widget _timeButton(String day,
+      {required bool isStart, required String label}) {
     return TextButton(
       onPressed: () => _pickTime(day, isStart: isStart),
       style: TextButton.styleFrom(

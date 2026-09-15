@@ -120,7 +120,8 @@ class _ReviewModalState extends State<ReviewModal> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Thank you for your review! / Merci pour votre avis!'),
+          content:
+              Text('✅ Thank you for your review! / Merci pour votre avis!'),
           backgroundColor: Color(0xFF3FBF7F),
           duration: Duration(seconds: 2),
         ),

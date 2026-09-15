@@ -77,12 +77,26 @@ class _ClientShellState extends State<ClientShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'StyleLink',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-            color: isDark ? Colors.white : const Color(0xFF2A2730),
+        title: Text.rich(
+          TextSpan(
+            text: 'Style',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+              letterSpacing: -0.5,
+              color: isDark ? Colors.white : const Color(0xFF2A2730),
+            ),
+            children: const [
+              TextSpan(
+                text: 'Link',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20,
+                  letterSpacing: -0.5,
+                  color: Color(0xFFFA5252),
+                ),
+              ),
+            ],
           ),
         ),
         centerTitle: false,
@@ -130,8 +144,7 @@ class _ClientShellState extends State<ClientShell> {
         destinations: [
           NavigationDestination(
             icon: const Icon(Icons.home_outlined),
-            selectedIcon:
-                const Icon(Icons.home, color: Color(0xFFF4665C)),
+            selectedIcon: const Icon(Icons.home, color: Color(0xFFF4665C)),
             label: t('home'),
           ),
           NavigationDestination(
@@ -161,8 +174,7 @@ class _ClientShellState extends State<ClientShell> {
           ),
           NavigationDestination(
             icon: const Icon(Icons.person_outline),
-            selectedIcon:
-                const Icon(Icons.person, color: Color(0xFFF4665C)),
+            selectedIcon: const Icon(Icons.person, color: Color(0xFFF4665C)),
             label: t('profile'),
           ),
         ],

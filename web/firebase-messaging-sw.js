@@ -8,7 +8,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVMovia24I0',
+  apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVmovIa24I0',
   authDomain: 'stylelink-505716.firebaseapp.com',
   projectId: 'stylelink-505716',
   storageBucket: 'stylelink-505716.firebasestorage.app',

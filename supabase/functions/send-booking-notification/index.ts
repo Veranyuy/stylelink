@@ -192,6 +192,60 @@ interface NotificationContent {
   providerBody: string;
 }
 
+function getRescheduleContent(
+  event: Exclude<RescheduleEvent, null>,
+  providerName: string,
+  clientName: string,
+  originalScheduledAt: string,
+  proposedScheduledAt: string
+): NotificationContent {
+  const fmt = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString("fr-FR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  switch (event) {
+    case "requested":
+      return {
+        clientTitle: "Reschedule Sent 📅",
+        clientBody: `Your request to move the appointment to ${fmt(
+          proposedScheduledAt
+        )} was sent to ${providerName}.`,
+        providerTitle: "Reschedule Request 📅",
+        providerBody: `${clientName} proposed moving the appointment (${fmt(
+          originalScheduledAt
+        )} → ${fmt(proposedScheduledAt)}). Accept or decline the new time.`,
+      };
+    case "accepted":
+      return {
+        clientTitle: "Reschedule Confirmed ✅",
+        clientBody: `${providerName} accepted the new time: ${fmt(
+          proposedScheduledAt
+        )}. See you there!`,
+        providerTitle: "Reschedule Accepted ✅",
+        providerBody: `Appointment moved to ${fmt(proposedScheduledAt)}.`,
+      };
+    case "declined":
+      return {
+        clientTitle: "Reschedule Declined",
+        clientBody: `${providerName} declined the proposed time. Your appointment stays at ${fmt(
+          originalScheduledAt
+        )}.`,
+        providerTitle: "Reschedule Declined",
+        providerBody: `Appointment kept at ${fmt(originalScheduledAt)}.`,
+      };
+  }
+}
+
 function getNotificationContent(
   status: string,
   providerName: string,
@@ -269,6 +323,28 @@ interface BookingRow {
   status: string;
   scheduled_at: string;
   total_price_fcfa: number;
+  proposed_scheduled_at?: string | null;
+  reschedule_status?: string | null;
+}
+
+/** Which reschedule event (if any) an UPDATE represents. */
+type RescheduleEvent = "requested" | "accepted" | "declined" | null;
+
+function classifyRescheduleEvent(
+  booking: BookingRow,
+  oldBooking: BookingRow | undefined
+): RescheduleEvent {
+  if (!oldBooking) return null;
+  const before = oldBooking.reschedule_status ?? null;
+  const after = booking.reschedule_status ?? null;
+
+  if (before !== after ||
+      oldBooking.proposed_scheduled_at !== booking.proposed_scheduled_at) {
+    if (after === "pending") return "requested"; // new or re-proposed slot
+    if (after === "accepted") return "accepted"; // slot moved + confirmed
+    if (after === "declined" || after === "rejected") return "declined";
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -297,17 +373,24 @@ serve(async (req: Request) => {
     const booking = payload.record as BookingRow;
     const oldBooking = payload.old_record as BookingRow | undefined;
 
-    // For UPDATE, only notify if the status actually changed.
+    // Reschedule lifecycle: proposal created (requested), provider accepted
+    // (slot moved + status confirmed), or provider declined (original kept).
+    const rescheduleEvent = classifyRescheduleEvent(booking, oldBooking);
+
+    // For UPDATE, only notify if the status actually changed or it's a
+    // reschedule event.
     if (
       payload.type === "UPDATE" &&
       oldBooking &&
-      oldBooking.status === booking.status
+      oldBooking.status === booking.status &&
+      !rescheduleEvent
     ) {
       return new Response("OK", { status: 200 });
     }
 
-    // Don't notify for 'pending' status (the initial state).
-    if (booking.status === "pending") {
+    // Don't notify for 'pending' status (the initial state) — except for a
+    // fresh reschedule request, which must notify the provider.
+    if (booking.status === "pending" && !rescheduleEvent) {
       return new Response("OK", { status: 200 });
     }
 
@@ -355,12 +438,27 @@ serve(async (req: Request) => {
       providerFcmToken = providerProfile?.fcm_token;
     }
 
-    // ── Get notification content ───────────────────────────────────────
-    const content = getNotificationContent(
-      booking.status,
-      providerName,
-      clientName
-    );
+    // ── Get notification content ───────────────────────────────────
+    const content = rescheduleEvent && oldBooking
+      ? getRescheduleContent(
+          rescheduleEvent,
+          providerName,
+          clientName,
+          // The appointment's original slot: current scheduled_at unless the
+          // accept just moved it.
+          rescheduleEvent === "accepted" && oldBooking.scheduled_at
+            ? oldBooking.scheduled_at
+            : booking.scheduled_at,
+          // The proposed slot: live in the record while pending, historical
+          // (old) after accept/decline cleared it.
+          booking.proposed_scheduled_at ?? oldBooking.proposed_scheduled_at ??
+            booking.scheduled_at
+        )
+      : getNotificationContent(
+          booking.status,
+          providerName,
+          clientName
+        );
 
     // ── Send notifications ─────────────────────────────────────────────
     const notifications: Promise<{ target: string; ok: boolean }>[] = [];
@@ -382,10 +480,12 @@ serve(async (req: Request) => {
       );
     }
 
-    // Notify the provider (for new bookings and client-initiated cancellations).
+    // Notify the provider (new bookings, reschedule requests, client-initiated
+    // cancellations and completions).
     if (providerFcmToken) {
       const shouldNotifyProvider =
         payload.type === "INSERT" || // new booking
+        rescheduleEvent === "requested" || // client proposed a new time
         booking.status === "cancelled" || // client cancelled
         booking.status === "completed"; // session done
 

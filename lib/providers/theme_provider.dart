@@ -74,23 +74,22 @@ class ThemeProvider extends ChangeNotifier {
   // access them through the provider instead of hardcoding hex values.
   // ---------------------------------------------------------------------------
 
-  /// Surface background.
+  /// Surface background — warm off-white, official brand background.
   Color get scaffoldBackground =>
-      isDark ? const Color(0xFF1A1720) : const Color(0xFFFAF7F3);
+      isDark ? const Color(0xFF1A1720) : const Color(0xFFFDFBF7);
 
   /// Card / sheet background.
-  Color get cardBackground =>
-      isDark ? const Color(0xFF242030) : Colors.white;
+  Color get cardBackground => isDark ? const Color(0xFF242030) : Colors.white;
 
-  /// Primary accent (coral).
-  Color get accent => const Color(0xFFF4665C);
+  /// Primary accent (official coral).
+  Color get accent => const Color(0xFFFA5252);
 
-  /// Secondary accent (lavender).
-  Color get secondary => const Color(0xFF9E86E6);
+  /// Secondary accent (official purple).
+  Color get secondary => const Color(0xFF9333EA);
 
-  /// Primary text.
+  /// Primary text — official charcoal.
   Color get textPrimary =>
-      isDark ? const Color(0xFFF0EDF5) : const Color(0xFF2A2730);
+      isDark ? const Color(0xFFF0EDF5) : const Color(0xFF1F2937);
 
   /// Secondary text.
   Color get textSecondary =>
@@ -107,6 +106,5 @@ class ThemeProvider extends ChangeNotifier {
   Color get error => const Color(0xFFB3261E);
 
   /// Icon tint on cards.
-  Color get iconTint =>
-      isDark ? const Color(0xFFB8B3C5) : Colors.grey.shade600;
+  Color get iconTint => isDark ? const Color(0xFFB8B3C5) : Colors.grey.shade600;
 }

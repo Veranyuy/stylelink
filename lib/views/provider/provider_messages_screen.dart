@@ -47,7 +47,8 @@ class _ProviderMessagesScreenState extends State<ProviderMessagesScreen> {
       return;
     }
 
-    await for (final messages in supabase.watchMessagesForProvider(providerId)) {
+    await for (final messages
+        in supabase.watchMessagesForProvider(providerId)) {
       final clientIds = messages.map((m) => m.clientId).toSet().toList();
       final clients = await supabase.fetchProfilesByIds(clientIds);
       final clientsById = {for (final c in clients) c.id: c};
@@ -103,8 +104,7 @@ class _ProviderMessagesScreenState extends State<ProviderMessagesScreen> {
                 }
                 if (snapshot.hasError) {
                   return ErrorRetry(
-                    message:
-                        'Could not load conversations.\n${snapshot.error}',
+                    message: 'Could not load conversations.\n${snapshot.error}',
                     onRetry: () => setState(() {}),
                   );
                 }
@@ -114,8 +114,7 @@ class _ProviderMessagesScreenState extends State<ProviderMessagesScreen> {
                   return const EmptyState(
                     icon: Icons.chat_bubble_outline,
                     title: 'No conversations yet',
-                    subtitle:
-                        'Clients will message you from their bookings.\n'
+                    subtitle: 'Clients will message you from their bookings.\n'
                         'Les clients vous contacteront depuis leurs réservations.',
                   );
                 }

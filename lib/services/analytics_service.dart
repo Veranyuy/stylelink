@@ -1,5 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// Thin wrapper around Firebase Analytics that provides typed event-logging
 /// helpers for StyleLink's key user flows.
@@ -10,18 +10,17 @@ class AnalyticsService {
   static final instance = AnalyticsService._();
 
   FirebaseAnalytics? _analytics;
-  FirebaseAnalytics get _fb =>
-      _analytics ??= FirebaseAnalytics.instance;
+  FirebaseAnalytics get _fb => _analytics ??= FirebaseAnalytics.instance;
 
   // ═════════════════════════════════════════════════════════════════════════
   // Auth events
   // ═════════════════════════════════════════════════════════════════════════
 
-  void logSignUp({required String method}) => _safeLog(() =>
-      _fb.logSignUp(signUpMethod: method));
+  void logSignUp({required String method}) =>
+      _safeLog(() => _fb.logSignUp(signUpMethod: method));
 
-  void logLogin({required String method}) => _safeLog(() =>
-      _fb.logLogin(loginMethod: method));
+  void logLogin({required String method}) =>
+      _safeLog(() => _fb.logLogin(loginMethod: method));
 
   void logSignOut() => _safeLog(() => _fb.logEvent(name: 'sign_out'));
 
@@ -156,11 +155,11 @@ class AnalyticsService {
   // User properties
   // ═════════════════════════════════════════════════════════════════════════
 
-  void setUserRole(String role) => _safeLog(() =>
-      _fb.setUserProperty(name: 'user_role', value: role));
+  void setUserRole(String role) =>
+      _safeLog(() => _fb.setUserProperty(name: 'user_role', value: role));
 
-  void setUserCity(String? city) => _safeLog(() =>
-      _fb.setUserProperty(name: 'city', value: city));
+  void setUserCity(String? city) =>
+      _safeLog(() => _fb.setUserProperty(name: 'city', value: city));
 
   // ═════════════════════════════════════════════════════════════════════════
   // Helpers

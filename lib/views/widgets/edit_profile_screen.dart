@@ -71,9 +71,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final updated = await SupabaseService.instance.updateProfile(
         fullName: _nameCtrl.text.trim(),
-        phoneNumber: _phoneCtrl.text.trim().isEmpty
-            ? null
-            : _phoneCtrl.text.trim(),
+        phoneNumber:
+            _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         city: _cityCtrl.text.trim().isEmpty ? null : _cityCtrl.text.trim(),
       );
       if (mounted) {
@@ -204,9 +203,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
                       // City dropdown
                       DropdownButtonFormField<String>(
-                        initialValue: _cityCtrl.text.isEmpty
-                            ? null
-                            : _cityCtrl.text,
+                        initialValue:
+                            _cityCtrl.text.isEmpty ? null : _cityCtrl.text,
                         decoration: _inputDecoration(
                           lang.isFrench ? 'Ville' : 'City',
                           Icons.location_city_outlined,
@@ -294,8 +292,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: Color(0xFFF4665C), width: 1.5),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }

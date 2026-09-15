@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../models/booking.dart';
 import '../../providers/language_provider.dart';
 import '../../services/supabase_service.dart';
 import 'analytics_screen.dart';
 import 'calendar_screen.dart';
+import 'dashboard_screen.dart';
 import 'earnings_screen.dart';
 import 'profile_screen.dart';
 import 'provider_messages_screen.dart';
@@ -27,10 +29,31 @@ class _ProviderShellState extends State<ProviderShell> {
   int _index = 0;
   int _unreadCount = 0;
 
+  /// Pending booking requests (pending status or open reschedule proposal)
+  /// surfaced as a badge on the Bookings tab.
+  Stream<int>? _pendingCountStream;
+
   @override
   void initState() {
     super.initState();
     _loadUnreadCount();
+    _initPendingCountStream();
+  }
+
+  void _initPendingCountStream() {
+    final user = SupabaseService.instance.currentUser;
+    if (user == null) return;
+    SupabaseService.instance.fetchProviderByUserId(user.id).then((provider) {
+      if (provider == null || !mounted) return;
+      setState(() {
+        _pendingCountStream = SupabaseService.instance
+            .watchBookingsForProvider(provider.id)
+            .map((bookings) => bookings
+                .where((b) =>
+                    b.status == BookingStatus.pending || b.hasPendingReschedule)
+                .length);
+      });
+    });
   }
 
   Future<void> _loadUnreadCount() async {
@@ -44,6 +67,7 @@ class _ProviderShellState extends State<ProviderShell> {
     final surface = Theme.of(context).colorScheme.surface;
 
     final pages = <Widget>[
+      const DashboardScreen(), // Bookings & Requests hub (default tab)
       const CalendarScreen(),
       const ServiceManagerScreen(),
       const ProviderMessagesScreen(),
@@ -54,12 +78,31 @@ class _ProviderShellState extends State<ProviderShell> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'StyleLink',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 20,
-            color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF2A2730),
+        title: Text.rich(
+          TextSpan(
+            text: 'Style',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 21,
+              letterSpacing: -0.5,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white
+                  : const Color(0xFF2A2730),
+            ),
+            children: [
+              TextSpan(
+                text: 'Link',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 21,
+                  letterSpacing: -0.5,
+                  color: const Color(0xFFF4665C).withValues(
+                      alpha: Theme.of(context).brightness == Brightness.dark
+                          ? .9
+                          : 1),
+                ),
+              ),
+            ],
           ),
         ),
         centerTitle: false,
@@ -95,7 +138,7 @@ class _ProviderShellState extends State<ProviderShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) {
           setState(() => _index = i);
-          if (i == 2) {
+          if (i == 3) {
             // Opening Messages tab — mark as read.
             SupabaseService.instance.markMessagesAsRead();
             setState(() => _unreadCount = 0);
@@ -105,7 +148,17 @@ class _ProviderShellState extends State<ProviderShell> {
         },
         backgroundColor: surface,
         indicatorColor: const Color(0x22F4665C),
+        height: 68,
+        labelTextStyle: const WidgetStatePropertyAll(TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+        )),
         destinations: [
+          NavigationDestination(
+            icon: _pendingBadge ?? const Icon(Icons.inbox_outlined),
+            selectedIcon: const Icon(Icons.inbox, color: Color(0xFFF4665C)),
+            label: t('bookings'),
+          ),
           NavigationDestination(
             icon: const Icon(Icons.calendar_month_outlined),
             selectedIcon:
@@ -145,18 +198,41 @@ class _ProviderShellState extends State<ProviderShell> {
           ),
           NavigationDestination(
             icon: const Icon(Icons.analytics_outlined),
-            selectedIcon:
-                const Icon(Icons.analytics, color: Color(0xFF9E86E6)),
+            selectedIcon: const Icon(Icons.analytics, color: Color(0xFF9E86E6)),
             label: t('analytics'),
           ),
           NavigationDestination(
             icon: const Icon(Icons.person_outline),
-            selectedIcon:
-                const Icon(Icons.person, color: Color(0xFFF4665C)),
+            selectedIcon: const Icon(Icons.person, color: Color(0xFFF4665C)),
             label: t('profile'),
           ),
         ],
       ),
+    );
+  }
+
+  /// Coral count badge on the Bookings tab while requests await a decision.
+  Widget? get _pendingBadge {
+    final stream = _pendingCountStream;
+    if (stream == null) return null;
+    return StreamBuilder<int>(
+      stream: stream,
+      builder: (context, snapshot) {
+        final count = snapshot.data ?? 0;
+        if (count == 0) return const Icon(Icons.inbox_outlined);
+        return Badge(
+          label: Text(
+            count > 99 ? '99+' : '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          backgroundColor: const Color(0xFFF4665C),
+          child: const Icon(Icons.inbox_outlined),
+        );
+      },
     );
   }
 

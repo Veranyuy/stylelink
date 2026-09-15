@@ -3,11 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// Premium animated splash screen for StyleLink.
+/// Premium animated splash screen for StyleLink — official branding.
 ///
-/// Light pinkish-grey gradient background with a thin ring that gradients
-/// from coral to lavender, coral "S" serif letter, and staggered animations.
-/// Shows for 15 seconds or until tapped.
+/// Warm off-white background (#FDFBF7) with the emblem: a coral→purple
+/// gradient ring (#FA5252 → #9333EA) around a coral serif "S", followed by
+/// the "StyleLink" wordmark (charcoal "Style" + gradient "Link") and the
+/// tagline. Staggered reveals. Shows for 4 seconds or until tapped.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.onReady});
 
@@ -99,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2EDF2),
+      backgroundColor: const Color(0xFFFDFBF7),
       body: GestureDetector(
         onTap: _skip,
         behavior: HitTestBehavior.opaque,
@@ -111,9 +112,9 @@ class _SplashScreenState extends State<SplashScreen>
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFFF8F6F8), // very light pinkish white
-                Color(0xFFF2EDF2), // light pinkish grey
-                Color(0xFFEDE8EE), // slightly deeper
+                Color(0xFFFDFBF7), // warm off-white — official brand bg
+                Color(0xFFFBF8F3), // whisper warmer
+                Color(0xFFF7F4ED), // deepest warm edge
               ],
             ),
           ),
@@ -194,9 +195,9 @@ class _SplashScreenState extends State<SplashScreen>
                 child: const Text(
                   'Discover and Book Stylists Near You.',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF999099),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF6B7280),
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -218,7 +219,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.0,
-                  color: Color(0xFFD08A8E),
+                  color: Color(0xFFFA5252),
                 ),
               ),
             );
@@ -251,7 +252,8 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  /// Thin ring with coral-to-lavender gradient — matches the app logo exactly.
+  /// Gradient ring + coral "S" — matches the official app icon exactly:
+  /// coral (#FA5252) → purple (#9333EA) running top-left to bottom-right.
   Widget _buildLogoRing() {
     return AnimatedBuilder(
       animation: _glowController,
@@ -268,27 +270,26 @@ class _SplashScreenState extends State<SplashScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Color.fromRGBO(210, 140, 160, glowOpacity),
+                    color: Color.fromRGBO(250, 82, 82, glowOpacity),
                     blurRadius: 24,
                     spreadRadius: 4,
                   ),
                 ],
               ),
             ),
-            // Ring with gradient border (coral → lavender)
-            CustomPaint(
-              size: const Size(72, 72),
+            // Ring with official gradient border (coral → purple)
+            const CustomPaint(
+              size: Size(72, 72),
               painter: _GradientRingPainter(
-                gradient: const LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                   colors: [
-                    Color(0xFFEF8A8D), // coral pink
-                    Color(0xFFD08CB5), // mauve
-                    Color(0xFFBF88C1), // lavender
+                    Color(0xFFFA5252), // coral — official seed
+                    Color(0xFF9333EA), // purple — official seed
                   ],
                 ),
-                strokeWidth: 2.0,
+                strokeWidth: 2.4,
               ),
             ),
             // Coral "S" letter
@@ -297,7 +298,7 @@ class _SplashScreenState extends State<SplashScreen>
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFFFA9287), // coral salmon
+                color: Color(0xFFFA5252), // official coral
                 fontFamily: 'Georgia',
                 height: 1.0,
               ),
@@ -308,27 +309,38 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 
-  /// "StyleLink" brand text — both in dark grey matching the logo.
+  /// "Style" in dark charcoal + "Link" in the coral→purple gradient.
   Widget _buildBrandText() {
-    return const Row(
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        const Text(
           'Style',
           style: TextStyle(
             fontSize: 34,
             fontWeight: FontWeight.w800,
-            color: Color(0xFF2A2730), // dark grey navy
+            color: Color(0xFF1F2937), // dark charcoal — official
             letterSpacing: -0.5,
           ),
         ),
-        Text(
-          'Link',
-          style: TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w400,
-            color: Color(0xFF2A2730), // same dark
-            letterSpacing: -0.5,
+        ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              Color(0xFFFA5252), // coral — official seed
+              Color(0xFF9333EA), // purple — official seed
+            ],
+          ).createShader(bounds),
+          blendMode: BlendMode.srcIn,
+          child: const Text(
+            'Link',
+            style: TextStyle(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              color: Colors.white, // tinted by the ShaderMask gradient
+              letterSpacing: -0.5,
+            ),
           ),
         ),
       ],
@@ -341,7 +353,8 @@ class _GradientRingPainter extends CustomPainter {
   final LinearGradient gradient;
   final double strokeWidth;
 
-  _GradientRingPainter({required this.gradient, required this.strokeWidth});
+  const _GradientRingPainter(
+      {required this.gradient, required this.strokeWidth});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -361,6 +374,7 @@ class _GradientRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GradientRingPainter oldDelegate) {
-    return oldDelegate.gradient != gradient || oldDelegate.strokeWidth != strokeWidth;
+    return oldDelegate.gradient != gradient ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }

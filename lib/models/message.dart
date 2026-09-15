@@ -28,9 +28,8 @@ class Message {
       providerId: json['provider_id'] as String,
       senderId: json['sender_id'] as String,
       body: json['body'] as String? ?? '',
-      createdAt:
-          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
-              DateTime.fromMillisecondsSinceEpoch(0),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 

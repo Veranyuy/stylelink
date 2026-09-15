@@ -270,8 +270,7 @@ class _PeriodTabs extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color:
-                          active ? Colors.white : const Color(0xFF6E6A76),
+                      color: active ? Colors.white : const Color(0xFF6E6A76),
                     ),
                   ),
                 ],
@@ -348,7 +347,8 @@ class _EarningsBody extends StatelessWidget {
               label: 'Avg. Booking / Moyenne',
               value: inRange.isEmpty
                   ? '—'
-                  : formatFcfa(totalRevenue ~/ (revenueBookings.isEmpty ? 1 : revenueBookings.length)),
+                  : formatFcfa(totalRevenue ~/
+                      (revenueBookings.isEmpty ? 1 : revenueBookings.length)),
               sub: 'Per confirmed/completed',
             ),
             const SizedBox(width: 12),
@@ -380,25 +380,18 @@ class _EarningsBody extends StatelessWidget {
           const SizedBox(height: 22),
         ],
 
-        // ── Recent bookings ──────────────────────────────────
-        const Text(
-          'Bookings in period',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 4),
-        if (inRange.isEmpty)
+        // Strictly financial: no per-booking management here — booking
+        // requests and their Accept/Decline actions live in the Bookings
+        // tab. When the period has no revenue at all, say so.
+        if (totalRevenue == 0)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: EmptyState(
               icon: Icons.trending_up,
-              title: 'No bookings in this period',
-              subtitle: 'Try selecting a different date range.',
+              title: 'No revenue in this period',
+              subtitle: 'Completed and confirmed bookings appear here.',
             ),
-          )
-        else
-          for (final booking in [...inRange]
-            ..sort((a, b) => b.scheduledAt.compareTo(a.scheduledAt)))
-            _RecentRow(booking: booking),
+          ),
       ],
     );
   }
@@ -674,63 +667,6 @@ class _MetricCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Recent row
-// =============================================================================
-
-class _RecentRow extends StatelessWidget {
-  const _RecentRow({required this.booking});
-
-  final Booking booking;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x14000000)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatBookingDateTime(booking.scheduledAt),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  booking.status.statusLabel,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            formatFcfa(booking.totalPriceFcfa),
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFFF4665C),
-            ),
-          ),
-        ],
       ),
     );
   }

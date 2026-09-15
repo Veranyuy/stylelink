@@ -40,6 +40,13 @@ class NotificationService {
   /// Previous status for each booking ID (to detect transitions).
   final Map<String, BookingStatus> _previousStatuses = {};
 
+  /// Previous scheduled_at for each booking ID (to detect reschedules).
+
+  /// Previous reschedule_status per booking ID ('pending' | 'accepted' |
+  /// 'rejected' | null) to detect reschedule request/response transitions.
+  final Map<String, String?> _previousRescheduleStatus = {};
+  final Map<String, String> _previousScheduledAt = {};
+
   // ═════════════════════════════════════════════════════════════════════════
   // Initialization
   // ═════════════════════════════════════════════════════════════════════════
@@ -212,7 +219,9 @@ class NotificationService {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) return;
-      await Supabase.instance.client.from('profiles').update({'fcm_token': token}).eq('id', userId);
+      await Supabase.instance.client
+          .from('profiles')
+          .update({'fcm_token': token}).eq('id', userId);
     } catch (e) {
       debugPrint('Failed to save FCM token: $e');
     }
@@ -304,11 +313,55 @@ class NotificationService {
       if (bookingId.isEmpty) continue;
 
       final previous = _previousStatuses[bookingId];
+      final previousScheduledAt = _previousScheduledAt[bookingId];
+      final scheduledAt = row['scheduled_at']?.toString() ?? '';
+      final hasNewScheduledAt = scheduledAt.isNotEmpty;
+      final rescheduleStatus = row['reschedule_status']?.toString();
+      final prevReschedule = _previousRescheduleStatus[bookingId];
+      _previousRescheduleStatus[bookingId] = rescheduleStatus;
 
-      // First time we see this booking — store its status, don't notify.
+      // First time we see this booking — store its state, don't notify.
       if (previous == null) {
         _previousStatuses[bookingId] = currentStatus;
+        if (hasNewScheduledAt) {
+          _previousScheduledAt[bookingId] = scheduledAt;
+        }
         continue;
+      }
+
+      // The provider answered our reschedule request. (Accept also moves
+      // scheduled_at, so check this before the silent slot-change skip.)
+      if (prevReschedule == 'pending' && rescheduleStatus == 'accepted') {
+        _previousStatuses[bookingId] = currentStatus;
+        if (hasNewScheduledAt) _previousScheduledAt[bookingId] = scheduledAt;
+        _notifyClientRescheduleAccepted(bookingId);
+        continue;
+      }
+      if (prevReschedule == 'pending' &&
+          (rescheduleStatus == 'rejected' || rescheduleStatus == 'declined')) {
+        _previousStatuses[bookingId] = currentStatus;
+        _notifyClientRescheduleDeclined(bookingId);
+        continue;
+      }
+
+      // The client's own new proposal (pending from null) — no self-alert.
+      if (prevReschedule == null && rescheduleStatus == 'pending') {
+        _previousStatuses[bookingId] = currentStatus;
+        continue;
+      }
+
+      // The appointment's time moved — refresh the cache silently. (With the
+      // proposal model this only happens on an accepted reschedule, handled
+      // above, or a direct provider change.)
+      if (hasNewScheduledAt &&
+          previousScheduledAt != null &&
+          previousScheduledAt != scheduledAt) {
+        _previousScheduledAt[bookingId] = scheduledAt;
+        _previousStatuses[bookingId] = currentStatus;
+        continue;
+      }
+      if (hasNewScheduledAt) {
+        _previousScheduledAt[bookingId] = scheduledAt;
       }
 
       // No change.
@@ -320,7 +373,30 @@ class NotificationService {
     }
   }
 
-  Future<void> _notifyClientTransition(BookingStatus status, String bookingId) async {
+  /// The provider accepted the client's proposed new time.
+  Future<void> _notifyClientRescheduleAccepted(String bookingId) async {
+    if (!await _isPrefEnabled('notif_booking_updates')) return;
+    showNotification(
+      channel: _clientChannel,
+      title: 'Reschedule Confirmed / Report confirmé ✅',
+      body: 'Your new appointment time was accepted.',
+      id: bookingId.hashCode,
+    );
+  }
+
+  /// The provider declined the client's proposed new time.
+  Future<void> _notifyClientRescheduleDeclined(String bookingId) async {
+    if (!await _isPrefEnabled('notif_cancellations')) return;
+    showNotification(
+      channel: _clientChannel,
+      title: 'Reschedule Declined / Report refusé',
+      body: 'The proposed time was declined. Your original time stands.',
+      id: bookingId.hashCode,
+    );
+  }
+
+  Future<void> _notifyClientTransition(
+      BookingStatus status, String bookingId) async {
     String? title;
     String? body;
     String prefKey;
@@ -372,14 +448,44 @@ class NotificationService {
       if (bookingId.isEmpty) continue;
 
       final previous = _previousStatuses[bookingId];
+      final previousScheduledAt = _previousScheduledAt[bookingId];
+      final scheduledAt = row['scheduled_at']?.toString() ?? '';
+      final hasNewScheduledAt = scheduledAt.isNotEmpty;
+      final rescheduleStatus = row['reschedule_status']?.toString();
+      final prevReschedule = _previousRescheduleStatus[bookingId];
+      _previousRescheduleStatus[bookingId] = rescheduleStatus;
 
       // New booking — first time seeing it.
       if (previous == null) {
         _previousStatuses[bookingId] = currentStatus;
+        if (hasNewScheduledAt) {
+          _previousScheduledAt[bookingId] = scheduledAt;
+        }
         if (currentStatus == BookingStatus.pending) {
           _notifyProviderNewBooking(bookingId);
         }
         continue;
+      }
+
+      // A client proposed a new time (reschedule_status -> 'pending'). The
+      // accept/decline transitions are the provider's own actions — silent.
+      if (prevReschedule != 'pending' && rescheduleStatus == 'pending') {
+        _previousScheduledAt[bookingId] = scheduledAt;
+        _previousStatuses[bookingId] = currentStatus;
+        _notifyProviderReschedule(bookingId);
+        continue;
+      }
+
+      // Slot moved without a proposal (provider edit) — cache only.
+      if (hasNewScheduledAt &&
+          previousScheduledAt != null &&
+          previousScheduledAt != scheduledAt) {
+        _previousScheduledAt[bookingId] = scheduledAt;
+        _previousStatuses[bookingId] = currentStatus;
+        continue;
+      }
+      if (hasNewScheduledAt) {
+        _previousScheduledAt[bookingId] = scheduledAt;
       }
 
       if (previous == currentStatus) continue;
@@ -387,6 +493,17 @@ class NotificationService {
       _previousStatuses[bookingId] = currentStatus;
       _notifyProviderTransition(currentStatus, bookingId);
     }
+  }
+
+  /// The client proposed a new appointment time — alert the provider.
+  Future<void> _notifyProviderReschedule(String bookingId) async {
+    if (!await _isPrefEnabled('notif_new_bookings')) return;
+    showNotification(
+      channel: _providerChannel,
+      title: 'Reschedule Request / Demande de report',
+      body: 'A client proposed a new time. Accept or decline it.',
+      id: bookingId.hashCode,
+    );
   }
 
   Future<void> _notifyProviderNewBooking(String bookingId) async {
@@ -399,7 +516,8 @@ class NotificationService {
     );
   }
 
-  Future<void> _notifyProviderTransition(BookingStatus status, String bookingId) async {
+  Future<void> _notifyProviderTransition(
+      BookingStatus status, String bookingId) async {
     String? title;
     String? body;
     String prefKey;
@@ -449,7 +567,8 @@ class NotificationService {
       channel: _providerChannel,
       title: 'New Review! / Nouvel avis !',
       body: 'A client left a star rating and comment on your profile.',
-      id: 'review-$providerId-${DateTime.now().millisecondsSinceEpoch}'.hashCode,
+      id: 'review-$providerId-${DateTime.now().millisecondsSinceEpoch}'
+          .hashCode,
     );
   }
 

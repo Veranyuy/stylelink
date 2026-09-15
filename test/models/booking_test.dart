@@ -248,5 +248,235 @@ void main() {
         expect(BookingStatus.cancelled.statusLabel, contains('Cancelled'));
       });
     });
+
+    group('reschedule proposal fields', () {
+      final originalSlot = DateTime.utc(2025, 9, 20, 10);
+      final proposedSlot = DateTime.utc(2025, 9, 21, 14);
+
+      Booking pendingProposal(
+              {BookingStatus status = BookingStatus.confirmed}) =>
+          Booking(
+            id: 'b10',
+            clientId: 'c1',
+            providerId: 'p1',
+            serviceIds: ['s1'],
+            scheduledAt: originalSlot,
+            status: status,
+            proposedScheduledAt: proposedSlot,
+            rescheduleStatus: RescheduleStatus.pending,
+          );
+
+      test('parses proposed_scheduled_at and reschedule_status', () {
+        final b = Booking.fromJson({
+          'id': 'b11',
+          'client_id': 'c1',
+          'provider_id': 'p1',
+          'service_ids': ['s1'],
+          'scheduled_at': '2025-09-20T10:00:00Z',
+          'status': 'confirmed',
+          'proposed_scheduled_at': '2025-09-21T14:00:00Z',
+          'reschedule_status': 'pending',
+        });
+
+        expect(b.proposedScheduledAt, DateTime.utc(2025, 9, 21, 14));
+        expect(b.rescheduleStatus, RescheduleStatus.pending);
+        expect(b.hasPendingReschedule, isTrue);
+      });
+
+      test('null proposal fields mean no reschedule', () {
+        final b = Booking.fromJson({
+          'id': 'b12',
+          'client_id': 'c1',
+          'provider_id': 'p1',
+          'service_ids': [],
+          'scheduled_at': '2025-09-20T10:00:00Z',
+          'status': 'confirmed',
+        });
+
+        expect(b.proposedScheduledAt, isNull);
+        expect(b.rescheduleStatus, isNull);
+        expect(b.hasPendingReschedule, isFalse);
+      });
+
+      test('parses declined alias and unknown as null', () {
+        expect(RescheduleStatus.parse('declined'), RescheduleStatus.rejected);
+        expect(RescheduleStatus.parse('rejected'), RescheduleStatus.rejected);
+        expect(RescheduleStatus.parse('pending'), RescheduleStatus.pending);
+        expect(RescheduleStatus.parse('accepted'), RescheduleStatus.accepted);
+        expect(RescheduleStatus.parse('weird'), isNull);
+        expect(RescheduleStatus.parse(null), isNull);
+        expect(RescheduleStatus.parse(''), isNull);
+      });
+
+      test('toJson round-trips the proposal', () {
+        final json = pendingProposal().toJson();
+        expect(json['proposed_scheduled_at'], '2025-09-21T14:00:00.000Z');
+        expect(json['reschedule_status'], 'pending');
+      });
+
+      test('hasPendingReschedule requires slot AND pending status', () {
+        final noSlot = Booking(
+          id: 'b13',
+          clientId: 'c',
+          providerId: 'p',
+          serviceIds: [],
+          scheduledAt: originalSlot,
+          rescheduleStatus: RescheduleStatus.pending,
+        );
+        expect(noSlot.hasPendingReschedule, isFalse);
+
+        final resolved = Booking(
+          id: 'b14',
+          clientId: 'c',
+          providerId: 'p',
+          serviceIds: [],
+          scheduledAt: proposedSlot,
+          rescheduleStatus: RescheduleStatus.accepted,
+        );
+        expect(resolved.hasPendingReschedule, isFalse);
+      });
+    });
+
+    group('resolveRescheduleResponse (respondToReschedule logic)', () {
+      final originalSlot = DateTime.utc(2025, 9, 20, 10);
+      final proposedSlot = DateTime.utc(2025, 9, 21, 14);
+
+      Booking bookingWithProposal({
+        BookingStatus status = BookingStatus.confirmed,
+        RescheduleStatus reschedule = RescheduleStatus.pending,
+        DateTime? respondedAt,
+      }) =>
+          Booking(
+            id: 'b20',
+            clientId: 'c1',
+            providerId: 'p1',
+            serviceIds: ['s1'],
+            scheduledAt: originalSlot,
+            status: status,
+            proposedScheduledAt:
+                reschedule == RescheduleStatus.pending ? proposedSlot : null,
+            rescheduleStatus: reschedule,
+            respondedAt: respondedAt,
+          );
+
+      test('SUCCESS accept: moves slot, confirms, clears proposal', () {
+        final decision = resolveRescheduleResponse(
+          booking: bookingWithProposal(),
+          accept: true,
+        );
+
+        expect(decision.status, BookingStatus.confirmed);
+        expect(decision.resolvedSlot, proposedSlot);
+        expect(decision.updates['scheduled_at'], '2025-09-21T14:00:00.000Z');
+        expect(decision.updates['status'], 'confirmed');
+        expect(decision.updates['reschedule_status'], 'accepted');
+        expect(decision.updates['proposed_scheduled_at'], isNull);
+        expect(decision.updates['responded_at'], isNotNull);
+      });
+
+      test('SUCCESS decline: keeps original slot and status', () {
+        final decision = resolveRescheduleResponse(
+          booking: bookingWithProposal(),
+          accept: false,
+        );
+
+        expect(decision.status, BookingStatus.confirmed); // original status
+        expect(decision.resolvedSlot, originalSlot); // original slot
+        expect(decision.updates['scheduled_at'], '2025-09-20T10:00:00.000Z');
+        expect(decision.updates['status'], 'confirmed');
+        expect(decision.updates['reschedule_status'], 'rejected');
+        expect(decision.updates['proposed_scheduled_at'], isNull);
+      });
+
+      test('decline on a pending booking keeps it pending', () {
+        final decision = resolveRescheduleResponse(
+          booking: bookingWithProposal(status: BookingStatus.pending),
+          accept: false,
+        );
+
+        expect(decision.status, BookingStatus.pending);
+        expect(decision.updates['status'], 'pending');
+        expect(decision.resolvedSlot, originalSlot);
+      });
+
+      test('decline stamps responded_at (or now when never set)', () {
+        final stamped = DateTime.utc(2025, 9, 19, 9);
+        final d1 = resolveRescheduleResponse(
+          booking: bookingWithProposal(respondedAt: stamped),
+          accept: false,
+        );
+        expect(d1.updates['responded_at'], '2025-09-19T09:00:00.000Z');
+
+        final d2 = resolveRescheduleResponse(
+          booking: bookingWithProposal(respondedAt: null),
+          accept: false,
+        );
+        expect(d2.updates['responded_at'], isNotNull);
+      });
+
+      test('EDGE: throws when there is no pending proposal', () {
+        final noProposal = Booking(
+          id: 'b21',
+          clientId: 'c',
+          providerId: 'p',
+          serviceIds: [],
+          scheduledAt: originalSlot,
+          status: BookingStatus.confirmed,
+        );
+        expect(
+          () => resolveRescheduleResponse(booking: noProposal, accept: true),
+          throwsStateError,
+        );
+      });
+
+      test('EDGE: throws when proposal already resolved', () {
+        final resolved = Booking(
+          id: 'b22',
+          clientId: 'c',
+          providerId: 'p',
+          serviceIds: [],
+          scheduledAt: originalSlot,
+          status: BookingStatus.confirmed,
+          rescheduleStatus: RescheduleStatus.accepted,
+        );
+        expect(
+          () => resolveRescheduleResponse(booking: resolved, accept: true),
+          throwsStateError,
+        );
+      });
+
+      test('EDGE: throws for terminal booking states', () {
+        for (final terminal in [
+          BookingStatus.completed,
+          BookingStatus.cancelled,
+          BookingStatus.rejected,
+        ]) {
+          final done = Booking(
+            id: 'b23',
+            clientId: 'c',
+            providerId: 'p',
+            serviceIds: [],
+            scheduledAt: originalSlot,
+            status: terminal,
+            proposedScheduledAt: proposedSlot,
+            rescheduleStatus: RescheduleStatus.pending,
+          );
+          expect(
+            () => resolveRescheduleResponse(booking: done, accept: true),
+            throwsStateError,
+            reason: '$terminal must not be reschedule-respondable',
+          );
+        }
+      });
+
+      test('EDGE: accept on a pending booking still confirms', () {
+        final decision = resolveRescheduleResponse(
+          booking: bookingWithProposal(status: BookingStatus.pending),
+          accept: true,
+        );
+        expect(decision.status, BookingStatus.confirmed);
+        expect(decision.resolvedSlot, proposedSlot);
+      });
+    });
   });
 }

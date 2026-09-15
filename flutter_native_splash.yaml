@@ -1,5 +1,6 @@
 flutter_native_splash:
-  color: "#F5F0F0"
+  # Warm off-white — official brand background (matches splash_screen.dart).
+  color: "#FDFBF7"
   color_dark: "#0D0D1A"
 
   image: assets/images/logo.png
@@ -12,7 +13,7 @@ flutter_native_splash:
 
   android: true
   android_12:
-    color: "#F5F0F0"
+    color: "#FDFBF7"
     image: assets/images/logo.png
     color_dark: "#0D0D1A"
     image_dark: assets/images/logo.png

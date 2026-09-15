@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 /// Shows 3 illustrated onboarding pages on first launch, then routes to
 /// [AuthScreen]. Persisted via SharedPreferences so it only appears once.
 class OnboardingScreen extends StatefulWidget {
@@ -39,7 +38,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       subtitle:
           'Browse top-rated barbers, braiders, and makeup artists in your city.\n\n'
           'Trouvez les meilleurs coiffeurs et maquilleurs dans votre ville.',
-      gradient: [Color(0xFF2EC4B6), Color(0xFF3AAFA9)], // teal
+      gradient: [
+        Color(0xFFFA5252),
+        Color(0xFF9333EA)
+      ], // official coral → purple
     ),
     _OnboardingPageData(
       icon: Icons.calendar_today_rounded,
@@ -47,7 +49,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       subtitle:
           'Choose your services, pick a time, and book — all in a few taps.\n\n'
           'Choisissez vos services, sélectionnez un horaire et réservez.',
-      gradient: [Color(0xFFFF6B35), Color(0xFFFFB347)], // orange
+      gradient: [
+        Color(0xFF9333EA),
+        Color(0xFFFA5252)
+      ], // official purple → coral
     ),
     _OnboardingPageData(
       icon: Icons.storefront_rounded,
@@ -55,7 +60,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       subtitle:
           'List your salon, manage your schedule, and track your earnings.\n\n'
           'Inscrivez votre salon, gérez vos horaires et suivez vos revenus.',
-      gradient: [Color(0xFF2EC4B6), Color(0xFFFF6B35)], // teal → orange
+      gradient: [
+        Color(0xFFFA5252),
+        Color(0xFF9333EA)
+      ], // official coral → purple
     ),
   ];
 
@@ -88,7 +96,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFDFBF7),
       body: SafeArea(
         child: Column(
           children: [
@@ -131,7 +139,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4),
                         color: _page == i
-                            ? const Color(0xFF2EC4B6)
+                            ? const Color(0xFFFA5252)
                             : const Color(0xFFD9D5DE),
                       ),
                     ),
@@ -147,12 +155,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: FilledButton(
                   onPressed: _next,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6B35),
+                    backgroundColor: const Color(0xFFFA5252),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                     elevation: 2,
-                    shadowColor: const Color(0x44FF6B35),
+                    shadowColor: const Color(0x44FA5252),
                   ),
                   child: Text(
                     _page == _pages.length - 1 ? 'Get Started' : 'Next',
@@ -210,7 +218,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1A1A2E),
+              color: Color(0xFF1F2937),
               letterSpacing: -0.3,
             ),
           ),

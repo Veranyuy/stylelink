@@ -149,8 +149,9 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
           businessName: _nameCtrl.text.trim(),
           category: _category!,
           city: _city!,
-          quarter:
-              _quarterCtrl.text.trim().isEmpty ? null : _quarterCtrl.text.trim(),
+          quarter: _quarterCtrl.text.trim().isEmpty
+              ? null
+              : _quarterCtrl.text.trim(),
           bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
           serviceType: ServiceType.studio,
           workingHours: _hours,
@@ -160,8 +161,7 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
       // 4. Add first service (if the user filled it in).
       if (_serviceNameCtrl.text.trim().isNotEmpty && _providerId != null) {
         final price = int.tryParse(_servicePriceCtrl.text.trim()) ?? 5000;
-        final duration =
-            int.tryParse(_serviceDurationCtrl.text.trim()) ?? 30;
+        final duration = int.tryParse(_serviceDurationCtrl.text.trim()) ?? 30;
         await supabase.createService(
           providerId: _providerId!,
           name: _serviceNameCtrl.text.trim(),
@@ -287,7 +287,9 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
                           ),
                         )
                       : Text(
-                          _page == _totalSteps - 1 ? 'Finish & Go Live' : 'Next',
+                          _page == _totalSteps - 1
+                              ? 'Finish & Go Live'
+                              : 'Next',
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -331,7 +333,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
                 ),
               ],
             ),
-            child: const Icon(Icons.storefront_rounded, size: 64, color: Colors.white),
+            child: const Icon(Icons.storefront_rounded,
+                size: 64, color: Colors.white),
           ),
           const Spacer(flex: 2),
           const Text(
@@ -426,7 +429,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
         _stepHeader(
           step: 2,
           title: 'Working Hours',
-          subtitle: 'When are you open? Clients can only book during these times.',
+          subtitle:
+              'When are you open? Clients can only book during these times.',
         ),
         const SizedBox(height: 20),
         for (final day in _days) _onboardingDayRow(day),
@@ -475,7 +479,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
                       ),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Text('–', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text('–',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
                       ),
                       _timeChip(
                         day,
@@ -486,7 +491,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
                   )
                 : Text(
                     'Closed / Fermé',
-                    style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                    style:
+                        TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
                   ),
           ),
         ],
@@ -548,7 +554,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
         _stepHeader(
           step: 3,
           title: 'Your First Service',
-          subtitle: 'Add at least one service so clients can book with you. You can skip and add more later.',
+          subtitle:
+              'Add at least one service so clients can book with you. You can skip and add more later.',
         ),
         const SizedBox(height: 20),
         _inputField(
@@ -728,7 +735,8 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
           borderSide: const BorderSide(color: Color(0xFFF4665C), width: 1.6),
         ),
       ),
-      items: items.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+      items:
+          items.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
       onChanged: onChanged,
     );
   }

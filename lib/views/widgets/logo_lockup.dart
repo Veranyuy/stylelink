@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// The StyleLink brand lockup: gradient-ring emblem + "Style" over a
-/// gradient "Link" wordmark.
+/// The StyleLink brand lockup: gradient-ring emblem + "Style" in charcoal
+/// over a gradient "Link" wordmark.
 ///
+/// Official palette: coral #FA5252 → purple #9333EA on warm off-white.
 /// Shared by the onboarding carousel and the auth screen.
 class LogoLockup extends StatelessWidget {
   const LogoLockup({super.key, this.compact = false});
@@ -24,7 +25,7 @@ class LogoLockup extends StatelessWidget {
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
-              colors: [Color(0xFFFF8B7B), Color(0xFF9E86E6)],
+              colors: [Color(0xFFFA5252), Color(0xFF9333EA)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -32,16 +33,15 @@ class LogoLockup extends StatelessWidget {
           child: Container(
             decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: Color(0xFFFAF7F3),
+              color: Color(0xFFFDFBF7),
             ),
             alignment: Alignment.center,
             child: Text(
               'S',
               style: TextStyle(
                 fontSize: emblem * 0.44,
-                fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFFF4665C),
+                color: const Color(0xFFFA5252),
               ),
             ),
           ),
@@ -55,14 +55,14 @@ class LogoLockup extends StatelessWidget {
               'Style',
               style: TextStyle(
                 fontSize: wordmark,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w800,
                 letterSpacing: -0.5,
-                color: const Color(0xFF2A2730),
+                color: const Color(0xFF1F2937),
               ),
             ),
             ShaderMask(
               shaderCallback: (bounds) => const LinearGradient(
-                colors: [Color(0xFFFF8B7B), Color(0xFF9E86E6)],
+                colors: [Color(0xFFFA5252), Color(0xFF9333EA)],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               ).createShader(bounds),
@@ -71,7 +71,7 @@ class LogoLockup extends StatelessWidget {
                 'Link',
                 style: TextStyle(
                   fontSize: wordmark,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                   color: Colors.white,
                 ),

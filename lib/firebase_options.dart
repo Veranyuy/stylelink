@@ -41,31 +41,30 @@ class DefaultFirebaseOptions {
   // by try-catch in main.dart and notification_service.dart.
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVMovia24I0',
+    apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVmovIa24I0',
     appId: '1:246740680949:web:3fb6126d1004a110db45bc',
     messagingSenderId: '246740680949',
     projectId: 'stylelink-505716',
     authDomain: 'stylelink-505716.firebaseapp.com',
     storageBucket: 'stylelink-505716.firebasestorage.app',
+    measurementId: 'G-14YL1WVJMC',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVMovia24I0',
-    appId: '1:246740680949:android:2467406809490000000000',
+    apiKey: 'AIzaSyCs7PIRZ6YjO9w8me-848TQelpFPbkJWPo',
+    appId: '1:246740680949:android:40b67eecfc877358db45bc',
     messagingSenderId: '246740680949',
     projectId: 'stylelink-505716',
     storageBucket: 'stylelink-505716.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVMovia24I0',
-    appId: '1:246740680949:ios:2467406809490000000000',
+    apiKey: 'AIzaSyBzQrvrh96WxTPvXArKHmT021K5uhKfCK0',
+    appId: '1:246740680949:ios:75cb95e64cbcf0d6db45bc',
     messagingSenderId: '246740680949',
     projectId: 'stylelink-505716',
     storageBucket: 'stylelink-505716.firebasestorage.app',
     iosBundleId: 'com.stylelink.app',
   );
-
   // Note: macos appId is a placeholder — run flutterfire configure to get real values.
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBB8JZHSH4jqYIYWImFWNMmXVMovia24I0',

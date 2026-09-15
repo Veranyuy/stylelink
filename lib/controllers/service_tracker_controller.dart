@@ -27,8 +27,7 @@ import '../models/booking.dart';
 /// `arrival_lat` / `arrival_lng` so the client can track progress.
 class ServiceTrackerController extends ChangeNotifier {
   ServiceTrackerController._();
-  static final ServiceTrackerController instance =
-      ServiceTrackerController._();
+  static final ServiceTrackerController instance = ServiceTrackerController._();
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -106,8 +105,7 @@ class ServiceTrackerController extends ChangeNotifier {
     final dLat = _toRad(lat2 - lat1);
     final dLng = _toRad(lng2 - lng1);
     final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRad(lat1)) * cos(_toRad(lat2)) *
-            sin(dLng / 2) * sin(dLng / 2);
+        cos(_toRad(lat1)) * cos(_toRad(lat2)) * sin(dLng / 2) * sin(dLng / 2);
     return r * 2 * asin(sqrt(a));
   }
 
@@ -176,11 +174,8 @@ class ServiceTrackerController extends ChangeNotifier {
     }
 
     // Fetch and return the updated booking.
-    final row = await _db
-        .from('bookings')
-        .select()
-        .eq('id', bookingId)
-        .single();
+    final row =
+        await _db.from('bookings').select().eq('id', bookingId).single();
     return Booking.fromJson(row);
   }
 
@@ -206,11 +201,8 @@ class ServiceTrackerController extends ChangeNotifier {
     }
     notifyListeners();
 
-    final row = await _db
-        .from('bookings')
-        .select()
-        .eq('id', bookingId)
-        .single();
+    final row =
+        await _db.from('bookings').select().eq('id', bookingId).single();
     return Booking.fromJson(row);
   }
 

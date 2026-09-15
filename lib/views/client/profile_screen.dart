@@ -28,8 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final supabase = SupabaseService.instance;
   bool _uploadingAvatar = false;
 
-  late final Stream<List<Provider>> _favoritesStream =
-      _buildFavoritesStream();
+  late final Stream<List<Provider>> _favoritesStream = _buildFavoritesStream();
 
   Stream<List<Provider>> _buildFavoritesStream() {
     final userId = supabase.currentUser?.id;
@@ -65,7 +64,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (role == UserRole.provider) {
                 return const SizedBox.shrink();
               }
-              return _BecomeProviderCard(onTap: _showBusinessSetup, isFrench: context.lang.isFrench);
+              return _BecomeProviderCard(
+                  onTap: _showBusinessSetup, isFrench: context.lang.isFrench);
             },
           ),
 
@@ -109,12 +109,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
           colors: [
-            theme.isDark
-                ? const Color(0xFF2A2540)
-                : const Color(0xFFF8F0FF),
-            theme.isDark
-                ? const Color(0xFF201D30)
-                : const Color(0xFFF0ECFA),
+            theme.isDark ? const Color(0xFF2A2540) : const Color(0xFFF8F0FF),
+            theme.isDark ? const Color(0xFF201D30) : const Color(0xFFF0ECFA),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -336,7 +332,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        icon: const Icon(Icons.delete_forever, color: Color(0xFFE5484D), size: 40),
+        icon: const Icon(Icons.delete_forever,
+            color: Color(0xFFE5484D), size: 40),
         title: const Text('Delete Account?'),
         content: const Text(
           'This action is permanent and cannot be undone. All your data, bookings, and reviews will be permanently deleted.',
@@ -349,7 +346,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE5484D)),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE5484D)),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete Permanently'),
           ),
@@ -473,7 +471,7 @@ class _FavoritesSection extends StatelessWidget {
 
             // ── Error fallback ───────────────────────────────────
             if (snapshot.hasError) {
-              return              _EmptyFavoritesCard(
+              return _EmptyFavoritesCard(
                 icon: Icons.error_outline_rounded,
                 title: context.t('could_not_load'),
                 subtitle: context.t('pull_to_refresh'),
@@ -559,7 +557,8 @@ class _EmptyFavoritesCard extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12.5, color: context.theme.textSecondary),
+            style:
+                TextStyle(fontSize: 12.5, color: context.theme.textSecondary),
           ),
         ],
       ),
@@ -904,9 +903,8 @@ class _BusinessSetupSheetState extends State<_BusinessSetupSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              initialValue: _categoryCtrl.text.isEmpty
-                  ? null
-                  : _categoryCtrl.text,
+              initialValue:
+                  _categoryCtrl.text.isEmpty ? null : _categoryCtrl.text,
               decoration: _inputDecoration('Category / Catégorie'),
               items: _categories
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -967,8 +965,7 @@ class _BusinessSetupSheetState extends State<_BusinessSetupSheet> {
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: Color(0xFFF4665C), width: 1.5),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 }
@@ -1144,9 +1141,8 @@ class _SettingsSection extends StatelessWidget {
           icon: Icons.notifications_outlined,
           iconColor: const Color(0xFF4A90E2),
           title: lang.isFrench ? 'Notifications' : 'Notifications',
-          subtitle: lang.isFrench
-              ? 'Gérer les alertes push'
-              : 'Manage push alerts',
+          subtitle:
+              lang.isFrench ? 'Gérer les alertes push' : 'Manage push alerts',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => const NotificationSettingsScreen(),
@@ -1305,9 +1301,8 @@ class _LanguageToggle extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isFrench
-                      ? const Color(0xFFF4665C)
-                      : Colors.grey.shade500,
+                  color:
+                      isFrench ? const Color(0xFFF4665C) : Colors.grey.shade500,
                 ),
               ),
             ),
@@ -1357,9 +1352,7 @@ class _Segment extends StatelessWidget {
           child: Icon(
             icon,
             size: 17,
-            color: selected
-                ? const Color(0xFF9E86E6)
-                : Colors.grey.shade500,
+            color: selected ? const Color(0xFF9E86E6) : Colors.grey.shade500,
           ),
         ),
       ),
@@ -1390,7 +1383,8 @@ class _DeleteAccountButton extends StatelessWidget {
             foregroundColor: const Color(0xFFE5484D),
             side: const BorderSide(color: Color(0x33E5484D)),
             padding: const EdgeInsets.symmetric(vertical: 13),
-            textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+            textStyle:
+                const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
           ),
         ),
       ),
@@ -1458,9 +1452,7 @@ class _EditProfileCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isFrench
-                          ? 'Nom, téléphone, ville'
-                          : 'Name, phone, city',
+                      isFrench ? 'Nom, téléphone, ville' : 'Name, phone, city',
                       style: TextStyle(
                         fontSize: 12,
                         color: theme.textSecondary,
@@ -1585,9 +1577,8 @@ class _SignOutButton extends StatelessWidget {
         icon: const Icon(Icons.logout_rounded, size: 18),
         label: Text(context.t('sign_out')),
         style: OutlinedButton.styleFrom(
-          foregroundColor: theme.isDark
-              ? const Color(0xFFFF8A80)
-              : const Color(0xFFB3261E),
+          foregroundColor:
+              theme.isDark ? const Color(0xFFFF8A80) : const Color(0xFFB3261E),
           side: BorderSide(
             color: theme.isDark
                 ? const Color(0x33FF8A80)
