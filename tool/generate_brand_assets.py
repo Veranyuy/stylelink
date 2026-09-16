@@ -21,7 +21,8 @@ Outputs (all under the `stylelink/` project root):
     android/app/src/main/res/mipmap-*/ic_launcher.png        48/72/96/144/192
     android/app/src/main/res/mipmap-*/ic_launcher_foreground.png
     android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-    android/app/src/main/res/values/ic_launcher_background.xml
+    (ic_launcher_background color lives in values/colors.xml, written by
+    flutter_launcher_icons — not emitted here, see NOTE below)
     ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-*.png (classic set)
     macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_*.png + Contents.json
     windows/runner/resources/app_icon.ico  (16→256 px embedded sizes)
@@ -145,7 +146,7 @@ def save(img: Image.Image, rel_path: str) -> None:
     print(f"  wrote {rel_path}  {img.size[0]}x{img.size[1]}")
 
 
-# ── Android ──────────────────────────────────────────────────────────────────
+# ── Android ──────────────────────────────────────────────────────────────────────────────────
 ANDROID_MIPMAPS = {
     "mipmap-mdpi": 48,
     "mipmap-hdpi": 72,
@@ -161,11 +162,9 @@ ADAPTIVE_XML = """<?xml version="1.0" encoding="utf-8"?>
 </adaptive-icon>
 """
 
-ADAPTIVE_BG_XML = """<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <color name="ic_launcher_background">#FDFBF7</color>
-</resources>
-"""
+# NOTE: the ic_launcher_background color lives in values/colors.xml (written
+# by flutter_launcher_icons). Do NOT also emit values/ic_launcher_background.xml
+# here — duplicate color definitions make the Gradle resource build fail.
 
 # ── iOS classic AppIcon set (matches the existing Contents.json) ─────────────
 IOS_ICONS = {
@@ -251,9 +250,8 @@ def main() -> None:
     with open(os.path.join(res, "mipmap-anydpi-v26/ic_launcher.xml"), "w", encoding="utf-8") as f:
         f.write(ADAPTIVE_XML)
     print("  wrote mipmap-anydpi-v26/ic_launcher.xml")
-    with open(os.path.join(res, "values/ic_launcher_background.xml"), "w", encoding="utf-8") as f:
-        f.write(ADAPTIVE_BG_XML)
-    print("  wrote values/ic_launcher_background.xml")
+    # ic_launcher_background color is intentionally NOT written here; it is
+    # owned by values/colors.xml (see NOTE at ADAPTIVE_XML above).
 
     print("iOS…")
     for name, px in IOS_ICONS.items():
