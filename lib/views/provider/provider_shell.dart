@@ -96,7 +96,7 @@ class _ProviderShellState extends State<ProviderShell> {
                   fontWeight: FontWeight.w800,
                   fontSize: 21,
                   letterSpacing: -0.5,
-                  color: const Color(0xFFF4665C).withValues(
+                  color: const Color(0xFFFA5252).withValues(
                       alpha: Theme.of(context).brightness == Brightness.dark
                           ? .9
                           : 1),

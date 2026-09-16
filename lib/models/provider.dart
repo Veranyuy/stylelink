@@ -1,3 +1,5 @@
+import '../utils/formatters.dart';
+
 /// Strongly-typed model for the `public.providers` table.
 ///
 /// Each row belongs to a `profiles` row whose role is `provider`. `rating` is
@@ -172,8 +174,9 @@ class Provider {
   bool get offersHomeService =>
       serviceType == ServiceType.home || serviceType == ServiceType.both;
 
-  /// "Starting from X FCFA" label used across cards and lists.
-  String get priceLabel => 'Starting from $priceFrom FCFA';
+  /// "from 8 000 FCFA" — or the bilingual "Price on request / Prix sur
+  /// demande" fallback when no price is set (priceFrom = 0).
+  String get priceLabel => formatPriceFrom(priceFrom);
 
   static double _asDouble(Object? v) {
     if (v is num) return v.toDouble();
