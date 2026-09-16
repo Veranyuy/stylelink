@@ -30,6 +30,12 @@ android {
         }
     }
 
+    // Release signing material (key.properties + keystore) is gitignored and
+    // only present on machines that have it. Fall back to debug signing so
+    // CI can still produce a release bundle; supply key.properties locally
+    // (or via a CI secret workflow) for Play Store uploads.
+    val hasReleaseSigning = rootProject.file("key.properties").exists()
+
     defaultConfig {
         applicationId = "com.stylelink.app"
         minSdk = flutter.minSdkVersion
@@ -40,7 +46,9 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseSigning) "release" else "debug",
+            )
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
