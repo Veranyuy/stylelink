@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -18,7 +20,7 @@ android {
 
     signingConfigs {
         create("release") {
-            val keyProperties = java.util.Properties()
+            val keyProperties = Properties()
             val keyPropertiesFile = rootProject.file("key.properties")
             if (keyPropertiesFile.exists()) {
                 keyProperties.load(keyPropertiesFile.inputStream())
