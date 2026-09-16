@@ -25,13 +25,19 @@ class CustomAvatar extends StatelessWidget {
   }
 
   String get _initials {
-    final parts = displayName.trim().split(RegExp(r'\\s+'));
+    // Drop empty segments so names with stray whitespace (e.g. "Aya ")
+    // can't yield empty strings — indexing those throws RangeError.
+    final parts = displayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
     if (parts.length >= 2) {
       return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
     }
-    return parts.isNotEmpty
-        ? parts.first.substring(0, parts.length.clamp(0, 2)).toUpperCase()
-        : '?';
+    final only = parts.first;
+    return only.substring(0, only.length.clamp(0, 2)).toUpperCase();
   }
 
   @override
