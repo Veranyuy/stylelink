@@ -38,7 +38,10 @@ dependencies:
   flutter_local_notifications: ^18.0.0
 
   # Crash reporting and performance monitoring.
-  sentry_flutter: ^8.9.0
+  # 9.x required: 8.14.x ships Swift code incompatible with the current
+  # sentry-cocoa pod (SentryBinaryImageCache has no member 'image'),
+  # which broke the iOS CI build.
+  sentry_flutter: ^9.0.0
 
   # Native splash screen generation.
   flutter_native_splash: ^2.4.3
