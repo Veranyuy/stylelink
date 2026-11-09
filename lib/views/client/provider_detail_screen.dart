@@ -130,17 +130,15 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
       }
 
       final booking = await supabase.createBooking(
-        clientId: user.id,
         providerId: widget.providerId,
         serviceIds: _selectedIds.toList(),
         scheduledAt: _scheduledAt!,
-        totalPriceFcfa: _totalFcfa,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
       );
       AnalyticsService.instance.logBookingCreated(
         providerId: widget.providerId,
         serviceCount: _selectedIds.length,
-        totalPriceFcfa: _totalFcfa,
+        totalPriceFcfa: booking.totalPriceFcfa,
       );
 
       if (!mounted) return;
@@ -172,9 +170,10 @@ class _ProviderDetailScreenState extends State<ProviderDetailScreen>
       widget.onBookingCreated?.call(); // switch shell to the Bookings tab
     } on PostgrestException catch (e) {
       if (!mounted) return;
-      // P0001 = raised exception from a PL/pgSQL function (e.g. provider busy guard).
+      // P0001 = raised exception from a PL/pgSQL validation function
+      // (slot taken, provider offline, service changed, own shop, etc.).
       final message = e.code == 'P0001'
-          ? 'This provider just entered a session. Please try again later.'
+          ? e.message
           : 'Could not create booking: ${e.message}';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

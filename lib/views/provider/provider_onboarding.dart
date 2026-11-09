@@ -4,34 +4,71 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/provider.dart';
 import '../../services/analytics_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/validators.dart';
 
-/// Guided onboarding flow for new providers.
+/// Guided business-setup wizard for service providers.
+///
+/// Reached in two ways:
+///  * directly after sign-up when the user registers as a Service Provider
+///    (mounted as the home route by the AuthGate — not dismissible), and
+///  * from the client Profile tab's "Become a Provider" card (dismissible).
 ///
 /// Steps:
-/// 1. Welcome — explains what StyleLink offers providers
-/// 2. Business Info — name, category, city, quarter, bio
-/// 3. Working Hours — day-by-day schedule with toggle
-/// 4. First Service — name, price, duration (skip option)
-/// 5. Done — success message, switches to provider mode
+/// 1. Shop Details  — business name, category, location
+/// 2. Add Services  — template chips + [+ Add Service] form (name, duration, price)
+/// 3. Working Hours — day-by-day schedule with toggles
+/// 4. Confirmation  — review summary, then [Finish & Go Live]
 class ProviderOnboarding extends StatefulWidget {
-  const ProviderOnboarding({super.key, this.onComplete});
+  const ProviderOnboarding({
+    super.key,
+    this.onComplete,
+    this.dismissible = false,
+  });
 
-  /// Called when onboarding is complete. The parent should re-resolve the
-  /// user's role and switch to provider mode.
+  /// Called after the business row and services have been saved. The parent
+  /// should re-resolve the user's role and switch to provider mode.
   final VoidCallback? onComplete;
+
+  /// Whether the wizard can be closed without completing (opened from the
+  /// profile tab). When false (post-signup) there is no close affordance —
+  /// the provider must finish setup so their shop isn't left hidden.
+  final bool dismissible;
 
   @override
   State<ProviderOnboarding> createState() => _ProviderOnboardingState();
+}
+
+/// A service drafted in step 2, saved in bulk at the end of the wizard.
+class _PendingService {
+  const _PendingService({
+    required this.name,
+    required this.price,
+    required this.durationMinutes,
+  });
+
+  final String name;
+  final int price;
+  final int durationMinutes;
+}
+
+/// Quick-pick preset shown as chips above the Add Service form.
+class _ServiceTemplate {
+  const _ServiceTemplate(this.name, this.durationMinutes, this.price);
+
+  final String name;
+  final int durationMinutes;
+  final int price;
 }
 
 class _ProviderOnboardingState extends State<ProviderOnboarding> {
   final _pageController = PageController();
   int _page = 0;
 
-  // ── Step 2: Business Info ──────────────────────────────────────────
+  static const _totalSteps = 4;
+
+  // ── Step 1: Shop Details ───────────────────────────────────────────
   final _nameCtrl = TextEditingController();
   final _quarterCtrl = TextEditingController();
-  final _bioCtrl = TextEditingController();
   String? _category;
   String? _city;
 
@@ -54,32 +91,43 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
     'Bamenda',
   ];
 
+  // ── Step 2: Add Services ───────────────────────────────────────────
+  final _serviceNameCtrl = TextEditingController();
+  final _servicePriceCtrl = TextEditingController();
+  final _serviceDurationCtrl = TextEditingController();
+  final List<_PendingService> _pendingServices = [];
+  String? _activeTemplate;
+
+  static const _templates = [
+    _ServiceTemplate('Haircut / Coupe', 30, 2000),
+    _ServiceTemplate('Braids / Tresses', 120, 5000),
+    _ServiceTemplate('Washing / Lavage', 30, 1000),
+    _ServiceTemplate('Beard Trim / Barbe', 15, 1000),
+    _ServiceTemplate('Coloring / Coloration', 120, 8000),
+    _ServiceTemplate('Manicure', 45, 3000),
+    _ServiceTemplate('Makeup / Maquillage', 60, 10000),
+    _ServiceTemplate('Locs Retwist / Retwist', 90, 4000),
+  ];
+
   // ── Step 3: Working Hours ──────────────────────────────────────────
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final Map<String, String?> _hours = {for (final d in _days) d: null};
-
-  // ── Step 4: First Service ──────────────────────────────────────────
-  final _serviceNameCtrl = TextEditingController();
-  final _servicePriceCtrl = TextEditingController(text: '5000');
-  final _serviceDurationCtrl = TextEditingController(text: '30');
-  final _serviceDescCtrl = TextEditingController();
+  // Sensible default: Mon–Sat 09:00–19:00, Sunday closed. Providers can
+  // tweak or toggle every day.
+  final Map<String, String?> _hours = {
+    for (final d in _days) d: d == 'Sun' ? null : '09:00-19:00',
+  };
 
   // ── State ──────────────────────────────────────────────────────────
   bool _saving = false;
-  String? _providerId; // set after upgradeToProvider succeeds
-
-  static const _totalSteps = 4;
 
   @override
   void dispose() {
     _pageController.dispose();
     _nameCtrl.dispose();
     _quarterCtrl.dispose();
-    _bioCtrl.dispose();
     _serviceNameCtrl.dispose();
     _servicePriceCtrl.dispose();
     _serviceDurationCtrl.dispose();
-    _serviceDescCtrl.dispose();
     super.dispose();
   }
 
@@ -105,27 +153,77 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
 
   bool get _canProceed {
     switch (_page) {
-      case 1: // Business info
-        return _nameCtrl.text.trim().isNotEmpty &&
-            _category != null &&
-            _city != null;
-      case 3: // First service
-        return true; // skip is always allowed
+      case 0: // Shop details
+        return Validators.canContinueShopDetails(
+          businessName: _nameCtrl.text,
+          category: _category,
+          city: _city,
+        );
       default:
         return true;
     }
   }
 
+  // ── Step 2 helpers ─────────────────────────────────────────────────
+
+  void _applyTemplate(_ServiceTemplate template) {
+    setState(() {
+      _activeTemplate = template.name;
+      _serviceNameCtrl.text = template.name;
+      _servicePriceCtrl.text = '${template.price}';
+      _serviceDurationCtrl.text = '${template.durationMinutes}';
+    });
+  }
+
+  Future<void> _addService() async {
+    FocusScope.of(context).unfocus();
+    final name = _serviceNameCtrl.text.trim();
+    final price = int.tryParse(_servicePriceCtrl.text.trim());
+    final duration = int.tryParse(_serviceDurationCtrl.text.trim());
+
+    final draftError = Validators.serviceDraftError(
+      name: name,
+      priceText: _servicePriceCtrl.text,
+      durationText: _serviceDurationCtrl.text,
+    );
+    if (draftError != null) {
+      _showWizardError(draftError);
+      return;
+    }
+
+    setState(() {
+      _pendingServices.add(_PendingService(
+        name: name,
+        price: price!,
+        durationMinutes: duration!,
+      ));
+      _serviceNameCtrl.clear();
+      _servicePriceCtrl.clear();
+      _serviceDurationCtrl.clear();
+      _activeTemplate = null;
+    });
+  }
+
+  void _removeService(int index) {
+    setState(() => _pendingServices.removeAt(index));
+  }
+
   // ── Save & Submit ──────────────────────────────────────────────────
 
-  /// Called when the user taps "Finish" on the last page.
-  /// Saves everything in order: upgrade role → business → hours → service.
+  /// Saves everything in order: upgrade role → business row → services.
   Future<void> _finish() async {
+    final setupError =
+        Validators.finishSetupError(serviceCount: _pendingServices.length);
+    if (setupError != null) {
+      _showWizardError(setupError);
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       final supabase = SupabaseService.instance;
 
-      // 1. Upgrade to provider role.
+      // 1. Upgrade to provider role (upserts the providers row).
       await supabase.upgradeToProvider(
         businessName: _nameCtrl.text.trim(),
         category: _category!,
@@ -138,60 +236,61 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
 
       // 2. Resolve the provider row so we can update additional fields.
       final user = supabase.currentUser;
-      if (user == null) throw AuthException('Not signed in');
+      if (user == null) throw const AuthException('Not signed in');
       final provider = await supabase.fetchProviderByUserId(user.id);
-      _providerId = provider?.id;
-
-      // 3. Save business details (quarter, bio, working hours).
-      if (_providerId != null) {
-        await supabase.saveBusiness(
-          providerId: _providerId,
-          businessName: _nameCtrl.text.trim(),
-          category: _category!,
-          city: _city!,
-          quarter: _quarterCtrl.text.trim().isEmpty
-              ? null
-              : _quarterCtrl.text.trim(),
-          bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
-          serviceType: ServiceType.studio,
-          workingHours: _hours,
-        );
+      final providerId = provider?.id;
+      if (providerId == null) {
+        throw Exception('Provider profile not found after setup.');
       }
 
-      // 4. Add first service (if the user filled it in).
-      if (_serviceNameCtrl.text.trim().isNotEmpty && _providerId != null) {
-        final price = int.tryParse(_servicePriceCtrl.text.trim()) ?? 5000;
-        final duration = int.tryParse(_serviceDurationCtrl.text.trim()) ?? 30;
+      // 3. Save the shop details + working hours. Keep any bio / cover /
+      //    service type that might already exist on the row.
+      await supabase.saveBusiness(
+        providerId: providerId,
+        businessName: _nameCtrl.text.trim(),
+        category: _category!,
+        city: _city!,
+        quarter: _quarterCtrl.text.trim().isEmpty
+            ? provider?.quarter
+            : _quarterCtrl.text.trim(),
+        bio: provider?.bio,
+        serviceType: provider?.serviceType ?? ServiceType.studio,
+        coverUrl: provider?.coverUrl,
+        workingHours: _hours,
+      );
+
+      // 4. Create every service drafted in step 2. The shop stays hidden
+      //    until at least one service exists.
+      for (final service in _pendingServices) {
         await supabase.createService(
-          providerId: _providerId!,
-          name: _serviceNameCtrl.text.trim(),
-          price: price,
-          durationMinutes: duration,
-          description: _serviceDescCtrl.text.trim().isEmpty
-              ? null
-              : _serviceDescCtrl.text.trim(),
+          providerId: providerId,
+          name: service.name,
+          price: service.price,
+          durationMinutes: service.durationMinutes,
         );
         AnalyticsService.instance.logServiceCreated(
-          providerId: _providerId!,
-          serviceName: _serviceNameCtrl.text.trim(),
-          price: price,
+          providerId: providerId,
+          serviceName: service.name,
+          price: service.price,
         );
       }
 
-      if (mounted) {
-        widget.onComplete?.call();
-      }
+      if (mounted) widget.onComplete?.call();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Setup failed: $e'),
-          backgroundColor: const Color(0xFFB3261E),
-        ),
-      );
+      _showWizardError('Setup failed: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _showWizardError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFB3261E),
+      ));
   }
 
   // ── UI ─────────────────────────────────────────────────────────────
@@ -203,19 +302,28 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Progress indicator ─────────────────────────────────
+            // ── Progress header ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
               child: Row(
                 children: [
-                  if (_page > 0)
-                    IconButton(
-                      onPressed: _back,
-                      icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-                      color: const Color(0xFF6E6A76),
-                    )
-                  else
-                    const SizedBox(width: 48),
+                  SizedBox(
+                    width: 48,
+                    child: _page > 0
+                        ? IconButton(
+                            onPressed: _back,
+                            icon:
+                                const Icon(Icons.arrow_back_ios_new, size: 20),
+                            color: const Color(0xFF6E6A76),
+                          )
+                        : (widget.dismissible
+                            ? IconButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                icon: const Icon(Icons.close, size: 22),
+                                color: const Color(0xFF6E6A76),
+                              )
+                            : const SizedBox.shrink()),
+                  ),
                   Expanded(
                     child: Row(
                       children: [
@@ -241,22 +349,22 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
               ),
             ),
 
-            // ── Page view ──────────────────────────────────────────
+            // ── Pages ────────────────────────────────────────────────
             Expanded(
               child: PageView(
                 controller: _pageController,
                 physics: const NeverScrollableScrollPhysics(),
                 onPageChanged: (i) => setState(() => _page = i),
                 children: [
-                  _buildWelcomePage(),
-                  _buildBusinessInfoPage(),
+                  _buildShopDetailsPage(),
+                  _buildAddServicesPage(),
                   _buildWorkingHoursPage(),
-                  _buildFirstServicePage(),
+                  _buildConfirmationPage(),
                 ],
               ),
             ),
 
-            // ── Bottom CTA ─────────────────────────────────────────
+            // ── Bottom CTA ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
               child: SizedBox(
@@ -289,7 +397,7 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
                       : Text(
                           _page == _totalSteps - 1
                               ? 'Finish & Go Live'
-                              : 'Next',
+                              : 'Continue',
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -305,93 +413,24 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Page 1: Welcome
+  // Step 1: Shop Details
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildWelcomePage() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: [
-          const Spacer(flex: 2),
-          // Gradient circle illustration.
-          Container(
-            width: 160,
-            height: 160,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFFFF8B7B), Color(0xFF9E86E6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFFF8B7B).withValues(alpha: 0.3),
-                  blurRadius: 40,
-                  offset: const Offset(0, 16),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.storefront_rounded,
-                size: 64, color: Colors.white),
-          ),
-          const Spacer(flex: 2),
-          const Text(
-            'Welcome to StyleLink',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF2A2730),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Provider Mode',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFFF4665C),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'List your business, set your schedule, and start receiving bookings from clients in your city.\n\n'
-            'Inscrivez votre activité, définissez vos horaires et commencez à recevoir des réservations.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.55,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          const Spacer(flex: 3),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════
-  // Page 2: Business Info
-  // ═══════════════════════════════════════════════════════════════════
-
-  Widget _buildBusinessInfoPage() {
+  Widget _buildShopDetailsPage() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       children: [
         _stepHeader(
           step: 1,
-          title: 'Your Business',
-          subtitle: 'Tell clients about your salon.',
+          title: 'Shop Details',
+          subtitle: 'Name your shop and tell clients where to find you.\n'
+              'Nommez votre salon et indiquez votre adresse.',
         ),
         const SizedBox(height: 20),
         _inputField(
           _nameCtrl,
-          'Business Name / Nom du salon',
+          'Shop Name / Nom du salon',
           Icons.storefront_outlined,
-          required: true,
         ),
         const SizedBox(height: 14),
         _dropdownField('Category / Catégorie', _category, _categories, (v) {
@@ -407,19 +446,251 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
           'Quarter / Neighborhood (optional)',
           Icons.location_on_outlined,
         ),
-        const SizedBox(height: 14),
-        _inputField(
-          _bioCtrl,
-          'Bio / Description (optional)',
-          Icons.info_outline,
-          maxLines: 3,
+        const SizedBox(height: 24),
+        Center(
+          child: TextButton(
+            onPressed: () async {
+              try {
+                await SupabaseService.instance.signOut();
+              } catch (_) {}
+            },
+            child: Text(
+              'Wrong account? Sign out / Déconnexion',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Page 3: Working Hours
+  // Step 2: Add Services
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildAddServicesPage() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      children: [
+        _stepHeader(
+          step: 2,
+          title: 'Add Services',
+          subtitle:
+              'Add at least one service so clients can book you — add more '
+              'anytime.\n'
+              'Ajoutez au moins une prestation pour être réservable.',
+        ),
+        const SizedBox(height: 18),
+
+        // Quick template chips.
+        const Text(
+          'QUICK ADD / AJOUT RAPIDE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: .08,
+            color: Color(0xFF8B8694),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final template in _templates) _templateChip(template),
+          ],
+        ),
+        const SizedBox(height: 22),
+
+        // Add Service form card.
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x14000000)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .04),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _inputField(
+                _serviceNameCtrl,
+                'Service Name (e.g. "Gentleman\'s Cut")',
+                Icons.content_cut_outlined,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _inputField(
+                      _servicePriceCtrl,
+                      'Price (FCFA)',
+                      Icons.payments_outlined,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _inputField(
+                      _serviceDurationCtrl,
+                      'Duration (mins)',
+                      Icons.timer_outlined,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Prominent Add Service action.
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: _addService,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFF4665C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_circle_outline, size: 22),
+                  label: const Text('Add Service'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Drafted services.
+        if (_pendingServices.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0x14FFB93F),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0x33FFB93F)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.visibility_off_rounded,
+                    size: 20, color: Color(0xFFCC8030)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Your shop stays hidden until you add at least 1 service.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.brown.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          for (var i = 0; i < _pendingServices.length; i++)
+            _draftedServiceRow(i),
+      ],
+    );
+  }
+
+  Widget _templateChip(_ServiceTemplate template) {
+    final selected = _activeTemplate == template.name;
+    return ActionChip(
+      onPressed: () => _applyTemplate(template),
+      avatar: Icon(
+        selected ? Icons.check_circle : Icons.bolt_rounded,
+        size: 17,
+        color: selected ? const Color(0xFFF4665C) : const Color(0xFF9E86E6),
+      ),
+      label: Text(
+        template.name,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: selected ? const Color(0xFFF4665C) : const Color(0xFF2A2730),
+        ),
+      ),
+      backgroundColor:
+          selected ? const Color(0x14F4665C) : const Color(0x0F000000),
+      side: BorderSide(
+        color: selected ? const Color(0x55F4665C) : const Color(0x14000000),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    );
+  }
+
+  Widget _draftedServiceRow(int index) {
+    final service = _pendingServices[index];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x22000000)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_rounded,
+              size: 20, color: Color(0xFF3FBF7F)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  service.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF2A2730),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_durationLabel(service.durationMinutes)} · '
+                  '${_priceLabel(service.price)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _removeService(index),
+            tooltip: 'Remove',
+            icon: const Icon(Icons.close_rounded,
+                size: 18, color: Color(0xFFB3261E)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Step 3: Working Hours
   // ═══════════════════════════════════════════════════════════════════
 
   Widget _buildWorkingHoursPage() {
@@ -427,10 +698,11 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       children: [
         _stepHeader(
-          step: 2,
+          step: 3,
           title: 'Working Hours',
           subtitle:
-              'When are you open? Clients can only book during these times.',
+              'When are you open? Clients can only book during these times.\n'
+              'Vos horaires d\'ouverture.',
         ),
         const SizedBox(height: 20),
         for (final day in _days) _onboardingDayRow(day),
@@ -544,73 +816,166 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Page 4: First Service
+  // Step 4: Final Confirmation
   // ═══════════════════════════════════════════════════════════════════
 
-  Widget _buildFirstServicePage() {
+  Widget _buildConfirmationPage() {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
       children: [
         _stepHeader(
-          step: 3,
-          title: 'Your First Service',
+          step: 4,
+          title: 'Review & Go Live',
           subtitle:
-              'Add at least one service so clients can book with you. You can skip and add more later.',
+              'Double-check your setup — you can edit everything later from '
+              'your dashboard.',
         ),
         const SizedBox(height: 20),
-        _inputField(
-          _serviceNameCtrl,
-          'Service Name (e.g. "Gentleman\'s Cut")',
-          Icons.content_cut_outlined,
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _inputField(
-                _servicePriceCtrl,
-                'Price (FCFA)',
-                Icons.payments_outlined,
-                keyboardType: TextInputType.number,
+
+        // Shop summary.
+        _summaryCard(
+          icon: Icons.storefront_outlined,
+          title: 'Your Shop',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _nameCtrl.text.trim(),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF2A2730),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _inputField(
-                _serviceDurationCtrl,
-                'Duration (mins)',
-                Icons.timer_outlined,
-                keyboardType: TextInputType.number,
+              const SizedBox(height: 4),
+              Text(
+                [
+                  if (_category != null) _category!,
+                  if (_city != null) _city!,
+                  if (_quarterCtrl.text.trim().isNotEmpty)
+                    _quarterCtrl.text.trim(),
+                ].join(' · '),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-        const SizedBox(height: 14),
-        _inputField(
-          _serviceDescCtrl,
-          'Description (optional)',
-          Icons.info_outline,
-          maxLines: 2,
+        const SizedBox(height: 12),
+
+        // Services summary.
+        _summaryCard(
+          icon: Icons.content_cut_outlined,
+          title: 'Services',
+          badge: '${_pendingServices.length}',
+          child: _pendingServices.isEmpty
+              ? Row(
+                  children: [
+                    const Icon(Icons.visibility_off_rounded,
+                        size: 18, color: Color(0xFFCC8030)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'No services yet — your shop will stay hidden until '
+                        'you add one from the dashboard.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: Colors.brown.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final service in _pendingServices)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle_rounded,
+                                size: 16, color: Color(0xFF3FBF7F)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                service.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF2A2730),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${_durationLabel(service.durationMinutes)} · '
+                              '${_priceLabel(service.price)}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
         ),
-        const SizedBox(height: 24),
-        // Skip option.
+        const SizedBox(height: 12),
+
+        // Working hours summary.
+        _summaryCard(
+          icon: Icons.schedule_outlined,
+          title: 'Working Hours',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final day in _days)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 38,
+                        child: Text(
+                          day,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2A2730),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _hours[day] == null
+                            ? 'Closed / Fermé'
+                            : '${_to12h(_hours[day]!.split("-").first)} – '
+                                '${_to12h(_hours[day]!.split("-").last)}',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: _hours[day] == null
+                              ? Colors.grey.shade500
+                              : const Color(0xFF6E6A76),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
         Center(
           child: TextButton(
-            onPressed: () {
-              // Clear service fields and go to next.
-              _serviceNameCtrl.clear();
-              _servicePriceCtrl.clear();
-              _serviceDurationCtrl.clear();
-              _serviceDescCtrl.clear();
-              // Trigger finish since this is the last page.
-              _finish();
-            },
-            child: Text(
-              'Skip for now / Passer',
+            onPressed: () => _pageController.jumpToPage(1),
+            child: const Text(
+              'Add another service / Ajouter une prestation',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                color: Color(0xFFF4665C),
               ),
             ),
           ),
@@ -675,11 +1040,67 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
     );
   }
 
+  Widget _summaryCard({
+    required IconData icon,
+    required String title,
+    required Widget child,
+    String? badge,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x14000000)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFFF4665C)),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .04,
+                  color: Color(0xFF6E6A76),
+                ),
+              ),
+              const Spacer(),
+              if (badge != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0x14F4665C),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    badge,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFF4665C),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+
   Widget _inputField(
     TextEditingController ctrl,
     String label,
     IconData icon, {
-    bool required = false,
     int maxLines = 1,
     TextInputType? keyboardType,
   }) {
@@ -739,6 +1160,18 @@ class _ProviderOnboardingState extends State<ProviderOnboarding> {
           items.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
       onChanged: onChanged,
     );
+  }
+
+  // ── Formatting helpers ─────────────────────────────────────────────
+
+  static String _priceLabel(int price) =>
+      '${price.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ' ')} FCFA';
+
+  static String _durationLabel(int minutes) {
+    if (minutes < 60) return '$minutes mins';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return m == 0 ? '$h hr' : '$h hr $m';
   }
 
   static String _to12h(String hhmm) {

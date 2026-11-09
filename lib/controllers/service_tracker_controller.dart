@@ -137,33 +137,28 @@ class ServiceTrackerController extends ChangeNotifier {
     switch (currentStatus) {
       // ── confirmed → arrived ──────────────────────────────────────────
       case BookingStatus.confirmed:
-        final update = <String, dynamic>{
-          'status': BookingStatus.arrived.dbValue,
-          'arrived_at': DateTime.now().toUtc().toIso8601String(),
-        };
-        // Only attach GPS coords if available (graceful web fallback).
-        if (arrivalLat != null) update['arrival_lat'] = arrivalLat;
-        if (arrivalLng != null) update['arrival_lng'] = arrivalLng;
-        await _db.from('bookings').update(update).eq('id', bookingId);
+        await _db.rpc('provider_mark_arrived', params: {
+          'p_booking_id': bookingId,
+          'p_lat': arrivalLat,
+          'p_lng': arrivalLng,
+        });
         notifyListeners();
         break;
 
-      // ── arrived → in_progress (PIN verification) ─────────────────────
+      // ── arrived → in_progress (server-side PIN verification) ────────
       case BookingStatus.arrived:
-        await _verifyPin(bookingId, pin);
-        await _db.from('bookings').update({
-          'status': BookingStatus.inProgress.dbValue,
-          'started_at': DateTime.now().toUtc().toIso8601String(),
-        }).eq('id', bookingId);
+        await _db.rpc('provider_verify_pin', params: {
+          'p_booking_id': bookingId,
+          'p_pin': pin,
+        });
         notifyListeners();
         break;
 
       // ── in_progress → completed ──────────────────────────────────────
       case BookingStatus.inProgress:
-        await _db.from('bookings').update({
-          'status': BookingStatus.completed.dbValue,
-          'completed_at': DateTime.now().toUtc().toIso8601String(),
-        }).eq('id', bookingId);
+        await _db.rpc('provider_complete_booking', params: {
+          'p_booking_id': bookingId,
+        });
         notifyListeners();
         break;
 
@@ -183,54 +178,10 @@ class ServiceTrackerController extends ChangeNotifier {
   ///
   /// Sets `completed_at` and returns the updated [Booking].
   Future<Booking> completeBooking(String bookingId) async {
-    try {
-      await _db.from('bookings').update({
-        'status': BookingStatus.completed.dbValue,
-        'completed_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('id', bookingId);
-    } catch (e) {
-      final msg = e.toString();
-      if (msg.contains('total_amount') || msg.contains('42703')) {
-        throw Exception(
-          'Database trigger error: a rogue trigger on the bookings table '
-          'references a non-existent "total_amount" column. '
-          'Run NUCLEAR_fix_total_amount.sql in the Supabase SQL Editor to fix this.',
-        );
-      }
-      rethrow;
-    }
+    final row = await _db.rpc('provider_complete_booking', params: {
+      'p_booking_id': bookingId,
+    });
     notifyListeners();
-
-    final row =
-        await _db.from('bookings').select().eq('id', bookingId).single();
-    return Booking.fromJson(row);
-  }
-
-  /// Validate the 6-digit verification PIN.
-  ///
-  /// The PIN is generated when the booking is confirmed and stored as
-  /// `verification_pin` on the bookings row. Only the client sees it;
-  /// the provider must ask for it on arrival.
-  Future<void> _verifyPin(String bookingId, String? pin) async {
-    if (pin == null || pin.trim().isEmpty) {
-      throw StateError('Verification PIN is required.');
-    }
-
-    final row = await _db
-        .from('bookings')
-        .select('verification_pin')
-        .eq('id', bookingId)
-        .single();
-
-    final stored = row['verification_pin']?.toString().trim();
-    if (stored == null || stored.isEmpty) {
-      // No PIN set — allow advancement (legacy bookings).
-      return;
-    }
-
-    if (pin.trim() != stored) {
-      throw StateError(
-          'Incorrect verification PIN. Please ask the client for the code.');
-    }
+    return Booking.fromJson(Map<String, dynamic>.from(row as Map));
   }
 }

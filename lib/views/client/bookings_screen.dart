@@ -289,10 +289,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
           itemCount: rows.length,
           itemBuilder: (context, i) => _BookingCard(
             row: rows[i],
-            onCancel: () => _cancelBooking(rows[i].booking),
-            onReschedule: rows[i].booking.isUpcoming
-                ? () => _rescheduleBooking(rows[i])
+            onCancel: BookingLifecycle.clientCanCancel(rows[i].booking.status)
+                ? () => _cancelBooking(rows[i].booking)
                 : null,
+            onReschedule:
+                BookingLifecycle.clientCanReschedule(rows[i].booking.status)
+                    ? () => _rescheduleBooking(rows[i])
+                    : null,
             onMessage: () => _openChat(rows[i].provider),
             onRate: rows[i].booking.status == BookingStatus.completed &&
                     !rows[i].isReviewed
@@ -315,7 +318,7 @@ class _BookingCard extends StatelessWidget {
   });
 
   final _BookingRow row;
-  final VoidCallback onCancel;
+  final VoidCallback? onCancel;
   final VoidCallback onMessage;
   final VoidCallback? onReschedule;
   final VoidCallback? onRate;
@@ -435,18 +438,20 @@ class _BookingCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: onCancel,
-                      icon: const Icon(Icons.event_busy, size: 17),
-                      label: const Text('Cancel'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFE5484D),
-                        padding: const EdgeInsets.symmetric(vertical: 11),
+                  if (onCancel != null) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.event_busy, size: 17),
+                        label: const Text('Cancel'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFE5484D),
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ] else

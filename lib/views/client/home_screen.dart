@@ -162,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final userIds = providers.map((p) => p.userId).toList();
       final rows = await Supabase.instance.client
-          .from('profiles')
+          .from('public_profiles')
           .select('id, avatar_url')
           .inFilter('id', userIds);
 

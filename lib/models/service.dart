@@ -30,9 +30,8 @@ class Service {
     return Service(
       id: json['id'] as String,
       providerId: json['provider_id'] as String,
-      // Deployed databases may still carry a legacy `title` column (see
-      // supabase/fix_services_title_column.sql) — fall back to it when a
-      // row comes back with `name` missing.
+      // Older databases may still carry a legacy `title` column — fall
+      // back to it when a row comes back with `name` missing.
       name: (json['name'] ?? json['title']) as String,
       description: json['description'] as String?,
       price: _asInt(json['price']),

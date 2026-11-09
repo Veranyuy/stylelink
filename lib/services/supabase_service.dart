@@ -11,11 +11,12 @@ import '../models/message.dart';
 import '../models/profile.dart';
 import '../models/provider.dart';
 import '../models/service.dart';
+import 'account_deletion_service.dart';
 import 'notification_service.dart';
 
 /// Singleton facade over the Supabase client.
 ///
-/// Expected schema (see `supabase/schema.sql`):
+/// Expected schema (see `supabase/migrations/`):
 ///   - `profiles`   (id, full_name, email, phone, role, avatar_url, city)
 ///   - `providers`  (id, user_id, business_name, category, city, quarter, bio,
 ///                   rating, review_count, service_type, price_from, cover_url,
@@ -24,9 +25,10 @@ import 'notification_service.dart';
 ///                   duration_minutes, is_active)
 ///   - `bookings`   (id, client_id, provider_id, service_ids uuid[],
 ///                   scheduled_at, status, total_price_fcfa, notes)
+///   - `booking_pins` (booking_id, pin, attempts) — never readable by clients
 ///
-/// All reads/writes go through the anon key; row-level security in the
-/// database enforces ownership (see RLS policies in schema.sql).
+/// All reads/writes go through the anon key; row-level security and
+/// SECURITY DEFINER RPCs enforce ownership and booking rules.
 class SupabaseService {
   SupabaseService._();
   static final SupabaseService instance = SupabaseService._();
@@ -148,8 +150,11 @@ class SupabaseService {
   Future<bool> signInWithGoogle({required UserRole role}) {
     return _db.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo:
-          kIsWeb ? Uri.base.origin : 'io.stylelink.app://login-callback',
+      // Must match the platform deep-link registrations:
+      //   Android: <data android:scheme="stylelink" android:host="open" />
+      //   iOS: CFBundleURLSchemes = ["stylelink"]
+      // Add this exact URL to Supabase Auth → URL Configuration → Redirect URLs.
+      redirectTo: kIsWeb ? Uri.base.origin : 'stylelink://open/login-callback',
       queryParams: {
         'data': jsonEncode({'role': role.name})
       },
@@ -158,7 +163,10 @@ class SupabaseService {
 
   /// Launch Apple Sign-In.
   Future<bool> signInWithApple({required UserRole role}) {
-    return _db.auth.signInWithOAuth(OAuthProvider.apple);
+    return _db.auth.signInWithOAuth(
+      OAuthProvider.apple,
+      redirectTo: kIsWeb ? Uri.base.origin : 'stylelink://open/login-callback',
+    );
   }
 
   /// Ensure the signed-in user has a row in `public.profiles`, creating it
@@ -214,80 +222,24 @@ class SupabaseService {
 
   /// Delete the current user's account and all associated data.
   ///
-  /// Cleans up rows from profiles, providers, services, bookings,
-  /// messages, favorites, and reviews, then deletes the auth user
-  /// and signs out.  On failure the caller should show an error and
-  /// NOT sign the user out (the account is still intact).
+  /// Delegates to the trusted `delete-account` Edge Function. That function
+  /// verifies the caller, removes stored images, and deletes the auth user;
+  /// related database rows cascade. The local session is signed out only when
+  /// the server explicitly confirms deletion, so a failure is never reported
+  /// as success.
+  ///
+  /// Deploy the function before using this method:
+  ///   supabase functions deploy delete-account
   Future<void> deleteAccount() async {
-    final user = currentUser;
-    if (user == null) {
+    if (currentUser == null) {
       throw const AuthException('You are not signed in.');
     }
-    final uid = user.id;
 
-    Sentry.addBreadcrumb(Breadcrumb(
-      message: 'deleteAccount started',
-      category: 'account',
-      data: {'user_id': uid},
-    ));
-
-    // 1. Delete child data first (to satisfy foreign-key constraints).
-    //    Each delete is wrapped in try/catch so a missing table or RLS
-    //    block on one does not abort the entire flow.
-
-    Future<void> safeDelete(String table, String column, String value) async {
-      try {
-        await _db.from(table).delete().eq(column, value);
-      } catch (e, st) {
-        // Table may not exist or RLS may block — continue cleanup.
-        Sentry.captureException(e,
-            stackTrace: st,
-            hint: Hint.withMap({'operation': 'deleteAccount_$table'}));
-      }
-    }
-
-    await safeDelete('messages', 'sender_id', uid);
-    await safeDelete('messages', 'client_id', uid);
-    await safeDelete('reviews', 'client_id', uid);
-    await safeDelete('favorites', 'user_id', uid);
-    await safeDelete('bookings', 'client_id', uid);
-
-    // If the user is also a provider, clean up provider-specific data.
-    try {
-      final provRows =
-          await _db.from('providers').select('id').eq('user_id', uid);
-      for (final row in provRows) {
-        final provId = row['id']?.toString() ?? '';
-        if (provId.isNotEmpty) {
-          await safeDelete('services', 'provider_id', provId);
-          await safeDelete('bookings', 'provider_id', provId);
-          await safeDelete('reviews', 'provider_id', provId);
-        }
-      }
-      await safeDelete('providers', 'user_id', uid);
-    } catch (e, st) {
-      // Provider cleanup is best-effort.
-      Sentry.captureException(e,
-          stackTrace: st,
-          hint: Hint.withMap({'operation': 'deleteAccount_providers_cleanup'}));
-    }
-
-    await safeDelete('profiles', 'id', uid);
-
-    // 2. Delete the auth user (requires the user's own session).
-    //    Uses the Supabase GoTrue admin API via RPC or direct DELETE.
-    try {
-      await _db.auth.admin.deleteUser(uid);
-    } catch (e, st) {
-      // Fallback: the user may not have admin permissions — try the
-      // standard sign-out path so at least the session is destroyed.
-      Sentry.captureException(e,
-          stackTrace: st,
-          hint: Hint.withMap({'operation': 'deleteAccount_adminDeleteUser'}));
-    }
-
-    // 3. Sign out to clear local session state.
-    await signOut();
+    final service = AccountDeletionService(
+      invoke: (name) => _db.functions.invoke(name),
+      signOut: signOut,
+    );
+    await service.deleteAccount();
   }
 
   /// Send a password reset email to [email].
@@ -393,7 +345,8 @@ class SupabaseService {
           'id': user.id,
           'full_name': fullName,
           'email': user.email,
-          'role': 'client',
+          // `role` is intentionally omitted: it is not in the client's
+          // INSERT grant and must be changed through set_user_role.
         }, onConflict: 'id');
       }
     } catch (e, st) {
@@ -430,10 +383,7 @@ class SupabaseService {
     String? category,
     int limit = 50,
   }) async {
-    var query = _db
-        .from('providers')
-        .select('*, profiles!user_id(avatar_url)')
-        .eq('city', city);
+    var query = _db.from('providers').select().eq('city', city);
     if (category != null && category.isNotEmpty) {
       query = query.eq('category', category);
     }
@@ -449,7 +399,7 @@ class SupabaseService {
     int? maxPrice,
     int limit = 50,
   }) async {
-    var query = _db.from('providers').select('*, profiles!user_id(avatar_url)');
+    var query = _db.from('providers').select();
     if (city != null && city.isNotEmpty) query = query.eq('city', city);
     if (category != null && category.isNotEmpty) {
       query = query.eq('category', category);
@@ -472,8 +422,7 @@ class SupabaseService {
   }) async {
     final q = query?.trim().toLowerCase() ?? '';
 
-    var providerQuery =
-        _db.from('providers').select('*, profiles!user_id(avatar_url)');
+    var providerQuery = _db.from('providers').select();
     if (city != null && city.isNotEmpty) {
       providerQuery = providerQuery.eq('city', city);
     }
@@ -515,22 +464,16 @@ class SupabaseService {
   }
 
   Future<Provider?> fetchProviderById(String providerId) async {
-    final rows = await _db
-        .from('providers')
-        .select('*, profiles!user_id(avatar_url)')
-        .eq('id', providerId)
-        .limit(1);
+    final rows =
+        await _db.from('providers').select().eq('id', providerId).limit(1);
     if (rows.isEmpty) return null;
     return Provider.fromJson(rows.first);
   }
 
   /// The provider row belonging to the given user (for provider dashboards).
   Future<Provider?> fetchProviderByUserId(String userId) async {
-    final rows = await _db
-        .from('providers')
-        .select('*, profiles!user_id(avatar_url)')
-        .eq('user_id', userId)
-        .limit(1);
+    final rows =
+        await _db.from('providers').select().eq('user_id', userId).limit(1);
     if (rows.isEmpty) return null;
     return Provider.fromJson(rows.first);
   }
@@ -538,10 +481,7 @@ class SupabaseService {
   /// Bulk provider lookup (for enriching booking rows with names/locations).
   Future<List<Provider>> fetchProvidersByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
-    final rows = await _db
-        .from('providers')
-        .select('*, profiles!user_id(avatar_url)')
-        .inFilter('id', ids);
+    final rows = await _db.from('providers').select().inFilter('id', ids);
     return rows.map(Provider.fromJson).toList();
   }
 
@@ -552,10 +492,15 @@ class SupabaseService {
     return rows.map(Service.fromJson).toList();
   }
 
-  /// Bulk profile lookup (for showing client names on the provider side).
+  /// Bulk public-profile lookup (display names/avatars for clients and
+  /// providers). Contact details stay private in `profiles`.
   Future<List<Profile>> fetchProfilesByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
-    final rows = await _db.from('profiles').select().inFilter('id', ids);
+    final rows = await _db
+        .from('public_profiles')
+        .select(
+            'id, full_name, avatar_url, role, city, language_preference, created_at')
+        .inFilter('id', ids);
     return rows.map(Profile.fromJson).toList();
   }
 
@@ -626,60 +571,42 @@ class SupabaseService {
     }
   }
 
-  /// Insert a new booking request (status starts as "pending" in the DB).
+  /// Request a booking through the `create_booking` RPC.
   ///
-  /// `totalPriceFcfa` should be the sum of the selected services' prices.
+  /// The server owns the price, availability, PIN, and client identity. The
+  /// client sends only what the user chose (provider, services, slot, notes).
   Future<Booking> createBooking({
-    required String clientId,
     required String providerId,
     required List<String> serviceIds,
     required DateTime scheduledAt,
-    required int totalPriceFcfa,
     String? notes,
   }) async {
     return _captureAndRethrow(
       () async {
-        final row = await _db
-            .from('bookings')
-            .insert({
-              'client_id': clientId,
-              'provider_id': providerId,
-              'service_ids': serviceIds,
-              // The picked slot (e.g. Tue, Sep 15 · 10:00 AM) goes to
-              // scheduled_at only — a brand-new booking is never a proposal.
-              'scheduled_at': scheduledAt.toUtc().toIso8601String(),
-              'total_price_fcfa': totalPriceFcfa,
-              'notes': notes,
-              // Explicit NULLs: protect against stray column defaults in the
-              // live DB violating bookings_reschedule_pairing_check, whose
-              // only insert-legal shape is (NULL, NULL).
-              'proposed_scheduled_at': null,
-              'reschedule_status': null,
-            })
-            .select()
-            .single();
-        return Booking.fromJson(row);
+        final row = await _db.rpc('create_booking', params: {
+          'p_provider_id': providerId,
+          'p_service_ids': serviceIds,
+          'p_scheduled_at': scheduledAt.toUtc().toIso8601String(),
+          'p_notes': notes,
+        });
+        return Booking.fromJson(Map<String, dynamic>.from(row as Map));
       },
       'createBooking',
     );
   }
 
-  /// Update a booking's status (provider side).
-  ///
-  /// When transitioning from pending, also stamps responded_at for
-  /// response time analytics.
+  /// Provider status action, validated by `provider_update_booking_status`.
+  /// The RPC allows only pending→confirmed/rejected, cancel-before-start,
+  /// and in_progress→completed. Arrival and PIN verification have dedicated
+  /// methods in [ServiceTrackerController].
   Future<void> updateBookingStatus(
     String bookingId,
     BookingStatus status,
   ) async {
-    final payload = <String, dynamic>{'status': status.name};
-
-    // Stamp responded_at when the provider first responds to a pending booking.
-    if (status != BookingStatus.pending) {
-      payload['responded_at'] = DateTime.now().toUtc().toIso8601String();
-    }
-
-    await _db.from('bookings').update(payload).eq('id', bookingId);
+    await _db.rpc('provider_update_booking_status', params: {
+      'p_booking_id': bookingId,
+      'p_status': status.dbValue,
+    });
   }
 
   /// Live, ordered stream of a provider's bookings.
@@ -687,7 +614,7 @@ class SupabaseService {
   /// Backed by Supabase Realtime: any insert/update on `public.bookings`
   /// filtered to this provider is pushed to every connected client. Requires
   /// the table to be added to the `supabase_realtime` publication
-  /// (included in schema.sql).
+  /// (included in the latest migration).
   Stream<List<Booking>> watchBookingsForProvider(String providerId) {
     return _db
         .from('bookings')
@@ -734,9 +661,20 @@ class SupabaseService {
 
   /// A client cancels one of their own upcoming bookings.
   Future<void> cancelBooking(String bookingId) async {
-    await _db
-        .from('bookings')
-        .update({'status': BookingStatus.cancelled.name}).eq('id', bookingId);
+    await _db.rpc('client_cancel_booking', params: {
+      'p_booking_id': bookingId,
+    });
+  }
+
+  /// The signed-in client's verification PIN for an active booking.
+  /// Providers never receive this value; they verify it through an RPC.
+  Future<String> fetchMyBookingPin(String bookingId) async {
+    final result = await _db.rpc('get_my_booking_pin', params: {
+      'p_booking_id': bookingId,
+    });
+    final pin = result?.toString() ?? '';
+    if (pin.isEmpty) throw StateError('No verification PIN is available.');
+    return pin;
   }
 
   /// Request a reschedule of an upcoming booking to a new date/time.
@@ -753,50 +691,11 @@ class SupabaseService {
   }) async {
     return _captureAndRethrow(
       () async {
-        final row =
-            await _db.from('bookings').select().eq('id', bookingId).single();
-        final booking = Booking.fromJson(row);
-
-        // Only upcoming bookings may be rescheduled.
-        if (!booking.isUpcoming) {
-          throw Exception(
-            'Only pending or confirmed bookings can be rescheduled.',
-          );
-        }
-
-        // No double proposals: answer the open one first.
-        if (booking.hasPendingReschedule) {
-          throw Exception(
-            'A reschedule request is already awaiting a response. / Une demande de report attend déjà une réponse.',
-          );
-        }
-
-        // Verify the new slot is available for this provider (excluding this
-        // booking itself, which still occupies its original slot).
-        final available = await checkProviderSlotAvailable(
-          providerId: booking.providerId,
-          scheduledAt: newScheduledAt,
-          excludeBookingId: booking.id,
-        );
-        if (!available) {
-          throw Exception(
-            'This time slot is no longer available. / Ce créneau n\'est plus disponible.',
-          );
-        }
-
-        final updated = await _db
-            .from('bookings')
-            .update({
-              // Keep the original appointment, slot AND status untouched —
-              // only record the proposal. The provider answers it explicitly
-              // via respondToReschedule.
-              'proposed_scheduled_at': newScheduledAt.toUtc().toIso8601String(),
-              'reschedule_status': 'pending',
-            })
-            .eq('id', bookingId)
-            .select()
-            .single();
-        return Booking.fromJson(updated);
+        final row = await _db.rpc('client_reschedule_booking', params: {
+          'p_booking_id': bookingId,
+          'p_new_scheduled_at': newScheduledAt.toUtc().toIso8601String(),
+        });
+        return Booking.fromJson(Map<String, dynamic>.from(row as Map));
       },
       'rescheduleBooking',
     );
@@ -815,24 +714,11 @@ class SupabaseService {
   ) async {
     return _captureAndRethrow(
       () async {
-        final row =
-            await _db.from('bookings').select().eq('id', bookingId).single();
-        final booking = Booking.fromJson(row);
-
-        // Pure decision table (unit-tested): validates the request and
-        // produces the exact fields to write.
-        final decision = resolveRescheduleResponse(
-          booking: booking,
-          accept: accept,
-        );
-
-        final updated = await _db
-            .from('bookings')
-            .update(decision.updates)
-            .eq('id', bookingId)
-            .select()
-            .single();
-        return Booking.fromJson(updated);
+        final row = await _db.rpc('provider_respond_reschedule', params: {
+          'p_booking_id': bookingId,
+          'p_accept': accept,
+        });
+        return Booking.fromJson(Map<String, dynamic>.from(row as Map));
       },
       'respondToReschedule',
     );
@@ -850,36 +736,11 @@ class SupabaseService {
   }) async {
     return _captureAndRethrow(
       () async {
-        final row =
-            await _db.from('bookings').select().eq('id', bookingId).single();
-        final booking = Booking.fromJson(row);
-
-        if (!booking.isUpcoming) {
-          throw Exception('Only upcoming bookings can be countered.');
-        }
-
-        // The counter slot must be free (excluding this booking itself).
-        final available = await checkProviderSlotAvailable(
-          providerId: booking.providerId,
-          scheduledAt: proposedAt,
-          excludeBookingId: booking.id,
-        );
-        if (!available) {
-          throw Exception(
-            'This time slot is no longer available. / Ce créneau n\'est plus disponible.',
-          );
-        }
-
-        final updated = await _db
-            .from('bookings')
-            .update({
-              'proposed_scheduled_at': proposedAt.toUtc().toIso8601String(),
-              'reschedule_status': 'pending',
-            })
-            .eq('id', bookingId)
-            .select()
-            .single();
-        return Booking.fromJson(updated);
+        final row = await _db.rpc('provider_counter_booking', params: {
+          'p_booking_id': bookingId,
+          'p_proposed_at': proposedAt.toUtc().toIso8601String(),
+        });
+        return Booking.fromJson(Map<String, dynamic>.from(row as Map));
       },
       'counterBooking',
     );
@@ -1060,8 +921,7 @@ class SupabaseService {
   /// The image is stored at `covers/<user_id>.jpg` in the public
   /// `provider_assets` bucket, so re-saving simply overwrites the same
   /// object (no orphaned files when the photo changes). Requires the bucket
-  /// and its storage policies — see `supabase/schema.sql` (or run
-  /// `supabase/provider_cover_storage.sql` against an existing database).
+  /// and its storage policies — see `supabase/migrations/`.
   ///
   /// Uses [uploadBinary] (not [upload]) because on web `storage_client`
   /// types its `File` parameter as `dynamic` and calls
@@ -1306,7 +1166,13 @@ class SupabaseService {
   Future<Service> updateService(Service service) async {
     final row = await _db
         .from('services')
-        .update(service.toJson())
+        .update({
+          'name': service.name,
+          'description': service.description,
+          'price': service.price,
+          'duration_minutes': service.durationMinutes,
+          'is_active': service.isActive,
+        })
         .eq('id', service.id)
         .select()
         .single();
@@ -1413,7 +1279,7 @@ class SupabaseService {
           msg.contains('42P01')) {
         throw Exception(
           'The reviews table is not set up yet. '
-          'Please run supabase/add_reviews_table_v2.sql in the Supabase SQL Editor first.',
+          'Apply the latest Supabase migration, then try again.',
         );
       }
       if (msg.contains('23503')) {
@@ -1426,8 +1292,7 @@ class SupabaseService {
       }
       if (msg.contains('row-level security') || msg.contains('42501')) {
         throw Exception(
-          'Permission denied. The reviews table RLS policy may need updating. '
-          'Run supabase/add_reviews_table_v2.sql in the Supabase SQL Editor.',
+          'Permission denied. Apply the latest Supabase migration and try again.',
         );
       }
       rethrow;
@@ -1451,13 +1316,34 @@ class SupabaseService {
     String providerId, {
     int limit = 20,
   }) async {
-    return await _db
+    final rows = await _db
         .from('reviews')
-        .select(
-            'id, rating, comment, created_at, client_id, profiles!client_id(full_name, avatar_url)')
+        .select('id, rating, comment, created_at, client_id')
         .eq('provider_id', providerId)
         .order('created_at', ascending: false)
         .limit(limit);
+
+    final clientIds = rows
+        .map((r) => r['client_id']?.toString())
+        .whereType<String>()
+        .toSet()
+        .toList();
+    if (clientIds.isEmpty) return rows;
+
+    final profiles = await _db
+        .from('public_profiles')
+        .select('id, full_name, avatar_url')
+        .inFilter('id', clientIds);
+    final byId = {
+      for (final p in profiles) p['id'].toString(): p,
+    };
+
+    return rows
+        .map((r) => {
+              ...r,
+              'profiles': byId[r['client_id']?.toString()],
+            })
+        .toList();
   }
 
   // ---------------------------------------------------------------------------

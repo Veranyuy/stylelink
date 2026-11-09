@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart' as launcher;
 
 import '../../../models/booking.dart';
 import '../../../models/provider.dart';
 import '../../../services/supabase_service.dart';
 import '../../../widgets/custom_avatar.dart';
 import '../../../widgets/review_modal.dart';
+import '../chat_screen.dart';
 
 /// Realtime tracker card shown at the top of the Client Home screen when
 /// the client has an active booking (confirmed → arrived → in_progress).
@@ -52,6 +52,13 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
   /// Enriched provider data for the active booking.
   Provider? _provider;
 
+  /// The client's verification PIN, fetched through an RPC. It is no longer
+  /// stored on the booking row, so providers cannot read it.
+  String? _pin;
+  String? _pinBookingId;
+  bool _pinLoading = false;
+  String? _pinError;
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +82,35 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
   Future<void> _resolveProvider(String providerId) async {
     final provider = await supabase.fetchProviderById(providerId);
     if (mounted) setState(() => _provider = provider);
+  }
+
+  /// Fetch the client's own PIN for this booking. Errors leave the badge in
+  /// its loading state rather than exposing anything from the booking row.
+  Future<void> _loadPin(String bookingId) async {
+    _pinBookingId = bookingId;
+    if (mounted) {
+      setState(() {
+        _pinLoading = true;
+        _pinError = null;
+      });
+    }
+    try {
+      final pin = await supabase.fetchMyBookingPin(bookingId);
+      if (mounted && _activeBooking?.id == bookingId) {
+        setState(() {
+          _pin = pin;
+          _pinLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted && _activeBooking?.id == bookingId) {
+        setState(() {
+          _pin = null;
+          _pinLoading = false;
+          _pinError = 'Could not load your verification code. Tap to retry.';
+        });
+      }
+    }
   }
 
   /// Start a 1-second timer for the live session clock.
@@ -140,7 +176,16 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
         if (_activeBooking?.id != booking.id) {
           _activeBooking = booking;
           _provider = null; // reset
+          _pin = null;
           _resolveProvider(booking.providerId);
+        }
+        if ((booking.status == BookingStatus.confirmed ||
+                booking.status == BookingStatus.arrived) &&
+            _pinBookingId != booking.id) {
+          _pinBookingId = booking.id;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadPin(booking.id);
+          });
         }
 
         // Ensure timer is running for in_progress.
@@ -203,15 +248,19 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           ),
           const SizedBox(height: 14),
           // Provider details.
-          _ProviderRow(provider: _provider, providerId: booking.providerId),
+          _ProviderRow(provider: _provider),
           const SizedBox(height: 14),
           // Verification PIN badge.
-          _PinBadge(pin: booking.verificationPin),
+          _PinBadge(
+            pin: _pin,
+            loading: _pinLoading,
+            error: _pinError,
+            onRetry: () => _loadPin(booking.id),
+          ),
           const SizedBox(height: 14),
-          // Call / Message buttons.
+          // Message button.
           _ActionButtons(
             provider: _provider,
-            providerId: booking.providerId,
             clientId: booking.clientId,
           ),
         ],
@@ -232,12 +281,15 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           _ArrivalBanner(),
           const SizedBox(height: 14),
           // Provider details.
-          _ProviderRow(provider: _provider, providerId: booking.providerId),
+          _ProviderRow(provider: _provider),
           const SizedBox(height: 14),
           // Highlighted PIN badge.
           _PinBadge(
-            pin: booking.verificationPin,
+            pin: _pin,
             highlight: true,
+            loading: _pinLoading,
+            error: _pinError,
+            onRetry: () => _loadPin(booking.id),
           ),
           const SizedBox(height: 12),
           Text(
@@ -252,7 +304,6 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           // Call / Message buttons.
           _ActionButtons(
             provider: _provider,
-            providerId: booking.providerId,
             clientId: booking.clientId,
           ),
         ],
@@ -349,7 +400,7 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
           ),
           const SizedBox(height: 14),
           // Provider details (compact).
-          _ProviderRow(provider: _provider, providerId: booking.providerId),
+          _ProviderRow(provider: _provider),
         ],
       ),
     );
@@ -390,7 +441,7 @@ class _ActiveBookingTrackerCardState extends State<ActiveBookingTrackerCard> {
             ),
           ),
           const SizedBox(height: 14),
-          _ProviderRow(provider: _provider, providerId: booking.providerId),
+          _ProviderRow(provider: _provider),
           if (booking.totalPriceFcfa > 0) ...[
             const SizedBox(height: 10),
             Row(
@@ -517,14 +568,41 @@ class _CardShell extends StatelessWidget {
 // =============================================================================
 
 class _PinBadge extends StatelessWidget {
-  const _PinBadge({this.pin, this.highlight = false});
+  const _PinBadge({
+    this.pin,
+    this.highlight = false,
+    this.loading = false,
+    this.error,
+    this.onRetry,
+  });
 
   final String? pin;
   final bool highlight;
+  final bool loading;
+  final String? error;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     if (pin == null || pin!.isEmpty) {
+      if (loading) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 6),
+          child: Text(
+            'Loading your verification code…',
+            style: TextStyle(fontSize: 12, color: Color(0xFF6E6A76)),
+          ),
+        );
+      }
+      if (error != null) {
+        return GestureDetector(
+          onTap: onRetry,
+          child: Text(
+            error!,
+            style: const TextStyle(fontSize: 12, color: Color(0xFFB3261E)),
+          ),
+        );
+      }
       return const SizedBox.shrink();
     }
 
@@ -661,10 +739,9 @@ class _ArrivalBannerState extends State<_ArrivalBanner>
 // =============================================================================
 
 class _ProviderRow extends StatelessWidget {
-  const _ProviderRow({required this.provider, required this.providerId});
+  const _ProviderRow({required this.provider});
 
   final Provider? provider;
-  final String providerId;
 
   @override
   Widget build(BuildContext context) {
@@ -710,60 +787,36 @@ class _ProviderRow extends StatelessWidget {
 class _ActionButtons extends StatelessWidget {
   const _ActionButtons({
     required this.provider,
-    required this.providerId,
     required this.clientId,
   });
 
   final Provider? provider;
-  final String providerId;
   final String clientId;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _callProvider,
-            icon: const Icon(Icons.call_outlined, size: 18),
-            label: const Text('Call'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF2E9E66),
-              side: const BorderSide(color: Color(0x443FBF7F)),
-              padding: const EdgeInsets.symmetric(vertical: 11),
-            ),
-          ),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: provider == null ? null : () => _openChat(context),
+        icon: const Icon(Icons.chat_bubble_outline, size: 18),
+        label: const Text('Message provider'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFF4665C),
+          side: const BorderSide(color: Color(0x33F4665C)),
+          padding: const EdgeInsets.symmetric(vertical: 11),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => _openChat(context),
-            icon: const Icon(Icons.chat_bubble_outline, size: 18),
-            label: const Text('Message'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFFF4665C),
-              side: const BorderSide(color: Color(0x33F4665C)),
-              padding: const EdgeInsets.symmetric(vertical: 11),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  Future<void> _callProvider() async {
-    // No phone number on the provider model — open the dialer with a
-    // placeholder or use the chat as the primary contact method.
-    final uri = Uri(scheme: 'tel', path: '');
-    await launcher.launchUrl(uri,
-        mode: launcher.LaunchMode.externalApplication);
-  }
-
   void _openChat(BuildContext context) {
-    // Navigate to the chat screen — the parent shell handles routing.
-    // For now, show a placeholder.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Opening chat…')),
+    final p = provider;
+    if (p == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(provider: p, clientId: clientId),
+      ),
     );
   }
 }

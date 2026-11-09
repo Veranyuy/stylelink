@@ -103,6 +103,12 @@
       document.getElementById("splash-branding")?.remove();
       document.body.style.background = "transparent";
     }
+
+    // Hand off to the animated Flutter splash as soon as its first frame is
+    // painted. Without this the static splash can cover the intro animation.
+    window.addEventListener("flutter-first-frame", function () {
+      removeSplashFromWeb();
+    });
   </script>
 </head>
 <body>

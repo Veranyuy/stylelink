@@ -1,7 +1,7 @@
 /// Strongly-typed model for the `public.profiles` table.
 ///
 /// Every authenticated user has exactly one profile row, created by the
-/// `handle_new_user()` trigger in `supabase/schema.sql`. The `role` column
+/// `handle_new_user()` trigger in the Supabase migrations. The `role` column
 /// drives role-based checks (client vs provider) across the app.
 class Profile {
   final String id; // references auth.users(id)

@@ -98,6 +98,7 @@ ALTER DATABASE postgres SET "app.settings.anon_key"
 | `* → cancelled` | Client + Provider | Both channels |
 | `* → rejected` | Client | `stylelink_booking_updates` |
 | `INSERT (new booking)` | Provider | `stylelink_provider_alerts` |
+| Shop hidden > 24 h (scheduled) | Provider | `stylelink_provider_alerts` or email — see `HIDDEN_SHOP_NUDGE_SETUP.md` |
 
 ## Troubleshooting
 

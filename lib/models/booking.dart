@@ -1,3 +1,36 @@
+/// Client-side visibility rules for booking actions.
+///
+/// The database is authoritative (all writes go through RPCs in
+/// `supabase/migrations/20261109000000_launch_readiness.sql`). These helpers
+/// only decide which buttons are offered, and are unit-tested so the UI cannot
+/// invite an action the server will reject.
+class BookingLifecycle {
+  const BookingLifecycle._();
+
+  static bool clientCanCancel(BookingStatus status) =>
+      status == BookingStatus.pending || status == BookingStatus.confirmed;
+
+  static bool clientCanReschedule(BookingStatus status) =>
+      clientCanCancel(status);
+
+  static bool providerCanRespond(BookingStatus status) =>
+      status == BookingStatus.pending;
+
+  static bool providerCanCancel(BookingStatus status) =>
+      status == BookingStatus.pending ||
+      status == BookingStatus.confirmed ||
+      status == BookingStatus.arrived;
+
+  static bool providerCanMarkArrived(BookingStatus status) =>
+      status == BookingStatus.confirmed;
+
+  static bool providerCanVerifyPin(BookingStatus status) =>
+      status == BookingStatus.arrived;
+
+  static bool providerCanComplete(BookingStatus status) =>
+      status == BookingStatus.inProgress;
+}
+
 /// Strongly-typed model for the `public.bookings` table.
 ///
 /// A booking links one client to one provider's schedule. `serviceIds` holds

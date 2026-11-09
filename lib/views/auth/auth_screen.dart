@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/profile.dart';
 import '../../services/analytics_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/validators.dart';
 import '../widgets/logo_lockup.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -27,6 +28,11 @@ class _AuthScreenState extends State<AuthScreen> {
   String? _notice;
   bool _handledSession = false;
   StreamSubscription<AuthState>? _authSub;
+
+  /// Role chosen on sign-up: Client (book appointments) or Service Provider
+  /// (run a shop). Providers are routed into the guided setup wizard right
+  /// after their account is created — see AuthGate in main.dart.
+  UserRole _selectedRole = UserRole.client;
 
   @override
   void initState() {
@@ -62,8 +68,8 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _googleBusy = true);
     try {
-      final launched = await SupabaseService.instance
-          .signInWithGoogle(role: UserRole.client);
+      final launched =
+          await SupabaseService.instance.signInWithGoogle(role: _selectedRole);
       AnalyticsService.instance.logLogin(method: 'google');
       if (!launched && mounted) {
         _showError('Could not open Google sign-in. Please try again.');
@@ -83,16 +89,14 @@ class _AuthScreenState extends State<AuthScreen> {
     final email = _email.text.trim();
     final password = _password.text;
 
-    if (_isSignUp && _fullName.text.trim().isEmpty) {
-      _showError('Please enter your full name.');
-      return;
-    }
-    if (!email.contains('@')) {
-      _showError('Please enter a valid email.');
-      return;
-    }
-    if (password.length < 6) {
-      _showError('Password must be at least 6 characters.');
+    final validationError = _isSignUp
+        ? Validators.required(_fullName.text,
+                message: 'Please enter your full name.') ??
+            Validators.email(email) ??
+            Validators.password(password)
+        : Validators.email(email) ?? Validators.password(password);
+    if (validationError != null) {
+      _showError(validationError);
       return;
     }
 
@@ -106,11 +110,13 @@ class _AuthScreenState extends State<AuthScreen> {
           email: email,
           password: password,
           fullName: _fullName.text.trim(),
-          phoneNumber:
-              _phone.text.trim().isEmpty ? null : _normalizePhone(_phone.text),
-          role: UserRole.client,
+          phoneNumber: _phone.text.trim().isEmpty
+              ? null
+              : Validators.normalizeCameroonPhone(_phone.text),
+          role: _selectedRole,
         );
         AnalyticsService.instance.logSignUp(method: 'email');
+        AnalyticsService.instance.setUserRole(_selectedRole.name);
         if (response.session == null && mounted) {
           setState(() {
             _notice =
@@ -180,8 +186,9 @@ class _AuthScreenState extends State<AuthScreen> {
     );
     if (confirmed != true || !mounted) return;
     final email = controller.text.trim();
-    if (!email.contains('@')) {
-      _showError('Please enter a valid email.');
+    final emailError = Validators.email(email);
+    if (emailError != null) {
+      _showError(emailError);
       return;
     }
     try {
@@ -195,13 +202,6 @@ class _AuthScreenState extends State<AuthScreen> {
     } catch (e) {
       _showError(e.toString());
     }
-  }
-
-  String? _normalizePhone(String raw) {
-    final digits = raw.replaceAll(RegExp(r'\D'), '');
-    if (digits.length == 9) return '+237$digits';
-    if (digits.length == 12 && digits.startsWith('237')) return '+$digits';
-    return null;
   }
 
   @override
@@ -246,6 +246,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         if (_notice != null) ...[
                           _noticeBox(_notice!),
                           const SizedBox(height: 16),
+                        ],
+                        if (_isSignUp) ...[
+                          _roleSelector(),
+                          const SizedBox(height: 18),
                         ],
                         _googleButton(busy: _googleBusy),
                         const SizedBox(height: 18),
@@ -306,6 +310,149 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ],
             ),
+    );
+  }
+
+  /// "I am a…" role gate: Client books appointments, Service Provider runs
+  /// a shop. Providers land in the guided setup wizard after sign-up.
+  Widget _roleSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'I am a… / Je suis…',
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6E6A76),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _roleCard(
+                icon: Icons.person_outline_rounded,
+                title: 'Client',
+                subtitle: 'Book appointments',
+                subtitleFr: 'Réserver',
+                selected: _selectedRole == UserRole.client,
+                onTap: () => setState(() => _selectedRole = UserRole.client),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _roleCard(
+                icon: Icons.storefront_rounded,
+                title: 'Service Provider',
+                subtitle: 'Run my shop',
+                subtitleFr: 'Gérer mon salon',
+                selected: _selectedRole == UserRole.provider,
+                onTap: () => setState(() => _selectedRole = UserRole.provider),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _roleCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String subtitleFr,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    // The auth screen paints a fixed light background, so the cards stay
+    // light-themed regardless of app dark mode.
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? const Color(0xFFFA5252) : const Color(0x14000000),
+            width: selected ? 1.6 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFFA5252).withValues(alpha: .18),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? const Color(0x14FA5252)
+                        : const Color(0x0F000000),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 19,
+                    color: selected
+                        ? const Color(0xFFFA5252)
+                        : const Color(0xFF6E6A76),
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color:
+                        selected ? const Color(0xFFFA5252) : Colors.transparent,
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFFFA5252)
+                          : const Color(0x33000000),
+                      width: 1.6,
+                    ),
+                  ),
+                  child: selected
+                      ? const Icon(Icons.check, size: 13, color: Colors.white)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$subtitle / $subtitleFr',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF9A95A3),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

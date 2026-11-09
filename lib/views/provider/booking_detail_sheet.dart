@@ -119,11 +119,6 @@ class _BookingDetailSheetState extends State<_BookingDetailSheet> {
         await SupabaseService.instance.respondToReschedule(_bookingId!, false);
       });
 
-  Future<void> _markCompleted() => _runAction(() async {
-        await SupabaseService.instance
-            .updateBookingStatus(_bookingId!, BookingStatus.completed);
-      });
-
   Future<void> _cancelBooking() => _runAction(() async {
         await SupabaseService.instance
             .updateBookingStatus(_bookingId!, BookingStatus.cancelled);
@@ -351,32 +346,23 @@ class _BookingDetailSheetState extends State<_BookingDetailSheet> {
         ];
       case BookingStatus.confirmed:
         return [
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _markCompleted,
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Mark as Completed'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
+          Text(
+            'Use the booking tracker on the dashboard to mark arrival, verify '
+            'the client\'s PIN, and complete the session.',
+            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: _cancelBooking,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF6E6A76),
+                side: const BorderSide(color: Color(0x33000000)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _cancelBooking,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF6E6A76),
-                    side: const BorderSide(color: Color(0x33000000)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('Cancel'),
-                ),
-              ),
-            ],
+              child: const Text('Cancel booking'),
+            ),
           ),
         ];
       case BookingStatus.arrived:

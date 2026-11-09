@@ -29,6 +29,12 @@ class _ProviderShellState extends State<ProviderShell> {
   int _index = 0;
   int _unreadCount = 0;
 
+  /// Bumped whenever the user lands on the Bookings/Dashboard tab so the
+  /// DashboardScreen re-resolves its service count (the "shop is hidden"
+  /// banner must disappear as soon as a service is added — e.g. from the
+  /// Services tab) and its data stays fresh.
+  int _dashboardEpoch = 0;
+
   /// Pending booking requests (pending status or open reschedule proposal)
   /// surfaced as a badge on the Bookings tab.
   Stream<int>? _pendingCountStream;
@@ -67,7 +73,7 @@ class _ProviderShellState extends State<ProviderShell> {
     final surface = Theme.of(context).colorScheme.surface;
 
     final pages = <Widget>[
-      const DashboardScreen(), // Bookings & Requests hub (default tab)
+      DashboardScreen(key: ValueKey('dashboard-$_dashboardEpoch')), // Bookings & Requests hub (default tab)
       const CalendarScreen(),
       const ServiceManagerScreen(),
       const ProviderMessagesScreen(),
@@ -137,7 +143,12 @@ class _ProviderShellState extends State<ProviderShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) {
-          setState(() => _index = i);
+          setState(() {
+            // Re-entering the dashboard tab: re-mount it so the onboarding
+            // banner and metrics reflect any services changed elsewhere.
+            if (i == 0 && _index != 0) _dashboardEpoch++;
+            _index = i;
+          });
           if (i == 3) {
             // Opening Messages tab — mark as read.
             SupabaseService.instance.markMessagesAsRead();

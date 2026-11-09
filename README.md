@@ -29,7 +29,7 @@ Premium beauty & barber booking platform for Cameroon. Clients discover top-rate
 ### Platform
 - **Bilingual** — full English/French localization with in-app language toggle
 - **Dark Mode** — light, dark, and system-follow theme support
-- **In-App Account Deletion** — GDPR/App Store compliant account removal
+- **In-App Account Deletion** — server-confirmed removal of the account, related rows, and stored images
 - **Forgot Password** — email-based password reset with deep-link redirect
 - **OAuth** — Google Sign-In for one-tap authentication
 
@@ -66,10 +66,13 @@ lib/
 │   ├── language_provider.dart          # EN/FR localization
 │   └── theme_provider.dart             # Light/Dark/System themes
 ├── services/
-│   ├── supabase_service.dart           # All Supabase API calls
+│   ├── supabase_service.dart           # Supabase API/RPC calls
+│   ├── account_deletion_service.dart   # Server-confirmed account deletion
 │   └── notification_service.dart       # FCM + local notifications
 ├── utils/
-│   └── formatters.dart                 # Currency, date, phone formatting
+│   ├── formatters.dart                 # Currency, date, phone formatting
+│   ├── legal_text.dart                 # In-app terms and privacy copy
+│   └── validators.dart                 # Sign-in and onboarding validation
 ├── views/
 │   ├── auth/
 │   │   └── auth_screen.dart            # Sign up / Sign in / Forgot password
@@ -95,11 +98,15 @@ lib/
 │   ├── custom_avatar.dart               # Smart avatar with initials fallback
 │   └── review_modal.dart               # Post-service review bottom sheet
 supabase/
-├── schema.sql                           # Full database schema
-├── auth_trigger.sql                     # Profile auto-creation trigger
-├── set_user_role.sql                    # Role assignment RPC
-├── upgrade_to_provider.sql              # Client → Provider upgrade RPC
-└── fix_*.sql                            # Migration & fix scripts
+├── migrations/
+│   └── 20261109000000_launch_readiness.sql  # Authoritative schema + security
+├── functions/
+│   ├── delete-account/                  # Trusted account deletion
+│   ├── send-booking-notification/       # FCM booking pushes
+│   └── send-hidden-shop-nudge/          # Provider re-engagement
+├── verify_launch_readiness.sql          # Fail-fast post-deploy checks
+├── README.md                            # Database setup rules
+└── schema.sql, fix_*.sql                 # Historical only — do not run
 ```
 
 ---
@@ -114,7 +121,7 @@ supabase/
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/YOUR_USERNAME/stylelink.git
+git clone <repository-url> stylelink
 cd stylelink
 flutter pub get
 ```
@@ -134,16 +141,35 @@ node server.js
 ```
 
 ### 4. Database Setup
-Run the SQL files in `supabase/` through the Supabase SQL Editor in order:
-1. `schema.sql` — creates all tables, RLS policies, and indexes
-2. `auth_trigger.sql` — profile auto-creation on signup
-3. `set_user_role.sql` — role assignment RPC
-4. `upgrade_to_provider.sql` — client-to-provider upgrade RPC
-5. Any `fix_*.sql` files as needed
+Use the single authoritative migration. Do **not** run the legacy `fix_*.sql`
+files or `schema.sql` on a new database.
+
+```bash
+supabase link --project-ref mzmumrggvwzwrootgcie
+supabase db push
+```
+
+Then run `supabase/verify_launch_readiness.sql` in the SQL Editor. It must
+print `StyleLink launch readiness: PASS`.
+
+Details, including the security model and the Edge Function deploy steps, are
+in [`supabase/README.md`](supabase/README.md). The full pre-launch checklist is
+[`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md).
 
 ---
 
 ## Deployment
+
+### Edge Functions
+```bash
+supabase functions deploy delete-account
+supabase functions deploy send-booking-notification
+supabase functions deploy send-hidden-shop-nudge
+```
+
+Set the Firebase service-account secrets before deploying the notification
+functions (`supabase/NOTIFICATION_SETUP.md`). `delete-account` needs no extra
+secret.
 
 ### Firebase Hosting
 ```bash
@@ -152,30 +178,40 @@ firebase deploy --only hosting
 ```
 
 ### Mobile (Android / iOS)
-```bash
-# Configure Firebase for mobile
-flutterfire configure
+Release builds require the real Firebase project files. CI fails if
+`GOOGLE_SERVICES_JSON_BASE64` or `GOOGLE_SERVICE_INFO_PLIST_BASE64` is missing,
+or if the decoded file is not for `stylelink-505716`.
 
-# Build
-flutter build apk    # Android
-flutter build ios    # iOS
+```bash
+flutterfire configure
+flutter build apk --release
+flutter build ios --release
 ```
+
+Set `SENTRY_DSN` as a `--dart-define` for crash reporting; without it Sentry
+stays disabled.
 
 ---
 
 ## Architecture Notes
 
 ### Booking State Machine
-Bookings progress through a strict state machine enforced both client-side and via database constraints:
+All booking writes go through validated RPCs; clients and providers have no
+direct INSERT/UPDATE/DELETE grant on `bookings`.
 
 ```
-confirmed → arrived → in_progress → completed
+pending → confirmed → arrived → in_progress → completed
+        ↘ rejected / cancelled
 ```
 
-- **confirmed** — Provider accepted; client sees tracking card with PIN
+- **pending** — Client requested a slot; price and slot are computed server-side
+- **confirmed** — Provider accepted; client sees tracking card with a PIN
 - **arrived** — Provider logged GPS arrival; client gets arrival notification
-- **in_progress** — PIN verified; session timer starts
+- **in_progress** — Provider verified the client's PIN; session timer starts
 - **completed** — Service finished; review prompt appears for client
+
+The PIN lives in `booking_pins` (no client grants) and is verified by an RPC
+with attempt throttling. Providers never receive it.
 
 ### Role System
 - All new users default to `client` role
@@ -195,7 +231,8 @@ Supabase Realtime channels power live booking status updates, message delivery, 
 | `profiles` | User accounts (id, name, email, role, avatar, language) |
 | `providers` | Provider details (business name, category, city, rating, portfolio) |
 | `services` | Service offerings per provider (name, price, duration) |
-| `bookings` | Client bookings with status, timestamps, GPS, and PIN |
+| `bookings` | Client bookings with status, timestamps, GPS, and price |
+| `booking_pins` | Private verification PINs (no client grants) |
 | `reviews` | Client reviews with star ratings and comments |
 | `favorites` | Saved stylists per client |
 | `messages` | Chat messages between clients and providers |
@@ -205,6 +242,14 @@ Supabase Realtime channels power live booking status updates, message delivery, 
 ## Localization
 
 All user-facing strings use `context.t('key')` from the `LanguageProvider`. Toggle between English and French from the profile settings screen. The default language is English.
+
+---
+
+## Launch checklist
+
+Before inviting real users, complete [`docs/LAUNCH_READINESS.md`](docs/LAUNCH_READINESS.md):
+the database migration, Edge Function deploys, OAuth redirects, push/device
+tests, support contact confirmation, legal review, and provider seeding.
 
 ---
 

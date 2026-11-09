@@ -15,6 +15,7 @@ import 'services/supabase_service.dart';
 import 'views/auth/auth_screen.dart';
 import 'views/auth/onboarding_screen.dart';
 import 'views/client/client_shell.dart';
+import 'views/provider/provider_onboarding.dart';
 import 'views/provider/provider_shell.dart';
 import 'views/widgets/splash_screen.dart';
 
@@ -185,9 +186,13 @@ class _StyleLinkAppState extends State<StyleLinkApp> {
 /// Single entry point for the authenticated app.
 ///
 /// All users (client and provider) land here after sign-in. The gate resolves
-/// the profile role and mounts the appropriate shell. Role selection has been
-/// removed — every new user defaults to 'client'. Providers can be created
-/// later via the in-app "Become a Provider" flow.
+/// the profile role and mounts the appropriate shell:
+///  * Providers without a business row are routed straight into the guided
+///    [ProviderOnboarding] wizard (they cannot reach the client home screen
+///    with an unconfigured, hidden shop).
+///  * Everyone else gets the ClientShell; providers created via the in-app
+///    "Become a Provider" flow switch to ProviderShell with the workspace
+///    toggle.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
@@ -205,6 +210,10 @@ class _AuthGateState extends State<AuthGate> {
   /// the role after a provider upgrade.  Incremented by ClientShell's
   /// upgrade callback.
   int _roleKey = 0;
+
+  /// Bumped whenever the guided provider setup wizard completes, so the
+  /// provider shells (dashboards) re-resolve their business/services state.
+  int _setupEpoch = 0;
 
   @override
   void initState() {
@@ -260,19 +269,49 @@ class _AuthGateState extends State<AuthGate> {
             final role = roleSnapshot.data;
             final isProvider = role == UserRole.provider;
 
-            // Workspace toggle: providers can switch between client and
-            // provider mode; clients always see ClientShell.
-            if (isProvider && _showProviderMode) {
-              return ProviderShell(
-                onSwitchToClient: () =>
-                    setState(() => _showProviderMode = false),
+            // Guided onboarding gate: a provider account without a business
+            // row cannot use the app — they would get lost on the client
+            // home screen with a hidden, unbookable shop. Route straight
+            // into the setup wizard instead. Not dismissible: the only way
+            // forward is completing setup (or signing out from step 1).
+            if (isProvider) {
+              return FutureBuilder<dynamic>(
+                key: ValueKey('setup-$_setupEpoch-${session.user.id}'),
+                future: SupabaseService.instance
+                    .fetchProviderByUserId(session.user.id),
+                builder: (context, setupSnapshot) {
+                  if (setupSnapshot.connectionState != ConnectionState.done) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (setupSnapshot.data == null) {
+                    return ProviderOnboarding(
+                      dismissible: false,
+                      onComplete: () => setState(() {
+                        // Land the provider straight in their dashboard.
+                        _showProviderMode = true;
+                        _setupEpoch++;
+                      }),
+                    );
+                  }
+                  // Setup complete → normal workspace toggle behavior.
+                  if (_showProviderMode) {
+                    return _providerWorkspace();
+                  }
+                  return ClientShell(
+                    onSwitchToProvider: () =>
+                        setState(() => _showProviderMode = true),
+                    onRoleChanged: () {
+                      // Force the FutureBuilder to re-resolve the role.
+                      setState(() => _roleKey++);
+                    },
+                  );
+                },
               );
             }
-            final cb = isProvider
-                ? () => setState(() => _showProviderMode = true)
-                : null;
             return ClientShell(
-              onSwitchToProvider: cb,
+              onSwitchToProvider: null,
               onRoleChanged: () {
                 // Force the FutureBuilder to re-resolve the role.
                 setState(() => _roleKey++);
@@ -281,6 +320,16 @@ class _AuthGateState extends State<AuthGate> {
           },
         );
       },
+    );
+  }
+
+  /// Provider workspace shell with the client-mode toggle. Kept as a helper
+  /// so both the onboarding-complete path and the direct provider path
+  /// mount it with the same setup epoch.
+  Widget _providerWorkspace() {
+    return ProviderShell(
+      key: ValueKey('provider-shell-$_setupEpoch'),
+      onSwitchToClient: () => setState(() => _showProviderMode = false),
     );
   }
 }
@@ -311,8 +360,8 @@ class _ErrorScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 const Text(
                   'We could not read your profile.\n'
-                  'Run supabase/schema.sql in the Supabase SQL editor, then '
-                  'sign out and back in.\n'
+                  'Apply the latest database migration, then sign out and '
+                  'back in.\n'
                   'Votre profil est introuvable.',
                   textAlign: TextAlign.center,
                   style: TextStyle(

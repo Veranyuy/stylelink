@@ -230,8 +230,13 @@ class NotificationService {
   void _onFcmForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
     if (notification == null) return;
+    // Hidden-shop nudges are provider-targeted pushes (sent by the
+    // send-hidden-shop-nudge edge function); everything else arrives on
+    // the booking-updates channel.
     showNotification(
-      channel: _clientChannel,
+      channel: message.data['type'] == 'hidden_shop_nudge'
+          ? _providerChannel
+          : _clientChannel,
       title: notification.title ?? 'StyleLink',
       body: notification.body ?? '',
       id: DateTime.now().millisecondsSinceEpoch.remainder(100000),

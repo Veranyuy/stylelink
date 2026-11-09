@@ -5,6 +5,7 @@ import '../../models/profile.dart';
 import '../../models/provider.dart';
 import '../../models/service.dart';
 import '../../controllers/service_tracker_controller.dart';
+import '../../services/analytics_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/booking_tracker_card.dart';
@@ -49,10 +50,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _providerId;
   bool _isAvailable = true;
 
+  /// How many active services the shop currently lists. 0 → the shop is
+  /// hidden from clients, so the setup banner is shown.
+  Future<int>? _serviceCountFuture;
+
   @override
   void initState() {
     super.initState();
     _providerFuture = _resolveProvider();
+  }
+
+  /// Re-resolve the service count (used after adding a service or when the
+  /// widget is re-keyed by the shell after the onboarding wizard).
+  void _reloadServiceCount(String providerId) {
+    setState(() {
+      _serviceCountFuture = supabase.fetchServicesForProvider(providerId)
+          .then((services) => services.length);
+    });
   }
 
   @override
@@ -71,6 +85,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _isAvailable = provider?.isAvailable ?? true;
       _stream =
           provider == null ? Stream.value(const []) : _buildStream(provider.id);
+      _serviceCountFuture = provider == null
+          ? Future.value(0)
+          : supabase
+              .fetchServicesForProvider(provider.id)
+              .then((services) => services.length);
     });
     // Subscribe to realtime booking changes for this provider.
     if (provider != null) {
@@ -338,10 +357,146 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 14),
+          // Hidden-shop banner: providers with 0 services cannot be booked
+          // and don't appear in client search results.
+          _buildSetupBanner(),
           Expanded(child: _buildStreamView()),
         ],
       ),
     );
+  }
+
+  /// Prominent top banner shown when the provider has 0 active services:
+  /// "Your shop is hidden!" with a direct + Add Service action.
+  Widget _buildSetupBanner() {
+    final providerId = _providerId;
+    final countFuture = _serviceCountFuture;
+    if (providerId == null || countFuture == null) {
+      return const SizedBox.shrink();
+    }
+    return FutureBuilder<int>(
+      future: countFuture,
+      builder: (context, snapshot) {
+        final done = snapshot.connectionState == ConnectionState.done;
+        // Only render the banner once the count resolved to 0 — any active
+        // service (or a still-loading count) keeps it hidden.
+        if (!done || (snapshot.data ?? 0) > 0) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFA5252), Color(0xFFF4665C)],
+              ),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFA5252).withValues(alpha: .30),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .18),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.visibility_off_rounded,
+                      color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Your shop is hidden! Add at least 1 service to start '
+                    'accepting bookings',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      height: 1.35,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: () => _showAddServiceSheet(providerId),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFFFA5252),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add Service'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Bottom-sheet Add Service form opened from the banner. Returns the
+  /// created service (or null). The sheet prompts until the input is valid.
+  Future<void> _showAddServiceSheet(String providerId) async {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final durationCtrl = TextEditingController(text: '30');
+
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _AddServiceSheet(
+        nameCtrl: nameCtrl,
+        priceCtrl: priceCtrl,
+        durationCtrl: durationCtrl,
+      ),
+    );
+    if (created != true || !mounted) return;
+
+    try {
+      final service = await supabase.createService(
+        providerId: providerId,
+        name: nameCtrl.text.trim(),
+        price: int.parse(priceCtrl.text.trim()),
+        durationMinutes: int.parse(durationCtrl.text.trim()),
+      );
+      AnalyticsService.instance.logServiceCreated(
+        providerId: providerId,
+        serviceName: service.name,
+        price: service.price,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Service added — your shop is now live! 🎉'),
+          backgroundColor: Color(0xFF2E7D32),
+        ),
+      );
+      _reloadServiceCount(providerId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not add service: $e'),
+          backgroundColor: const Color(0xFFB3261E),
+        ),
+      );
+    }
   }
 
   Widget _buildStreamView() {
@@ -882,6 +1037,215 @@ class _Avatar extends StatelessWidget {
           ),
         ),
       );
+}
+
+// =============================================================================
+// Add Service sheet (opened from the "shop is hidden" banner)
+// =============================================================================
+
+/// Modal bottom sheet with the Add Service form: Name, Duration, Price.
+/// Pops `true` when the inputs are valid; the dashboard then writes the
+/// service to the DB and reloads its banner state.
+class _AddServiceSheet extends StatefulWidget {
+  const _AddServiceSheet({
+    required this.nameCtrl,
+    required this.priceCtrl,
+    required this.durationCtrl,
+  });
+
+  final TextEditingController nameCtrl;
+  final TextEditingController priceCtrl;
+  final TextEditingController durationCtrl;
+
+  @override
+  State<_AddServiceSheet> createState() => _AddServiceSheetState();
+}
+
+class _AddServiceSheetState extends State<_AddServiceSheet> {
+  final _formKey = GlobalKey<FormState>();
+  bool _saving = false;
+
+  static const _templates = [
+    ('Haircut / Coupe', '2000', '30'),
+    ('Braids / Tresses', '5000', '120'),
+    ('Washing / Lavage', '1000', '30'),
+    ('Beard Trim / Barbe', '1000', '15'),
+  ];
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    // Give the sheet time to close smoothly before the DB write completes.
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    if (mounted) Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFFAF7F3),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Add Service / Ajouter une prestation',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF2A2730),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final (name, price, duration) in _templates)
+                        ActionChip(
+                          onPressed: () => setState(() {
+                            widget.nameCtrl.text = name;
+                            widget.priceCtrl.text = price;
+                            widget.durationCtrl.text = duration;
+                          }),
+                          label: Text(
+                            name,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          backgroundColor: const Color(0x14F4665C),
+                          side: const BorderSide(color: Color(0x33F4665C)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TextFormField(
+                    controller: widget.nameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: _sheetInput('Service Name / Nom',
+                        Icons.content_cut_outlined),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: widget.priceCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              _sheetInput('Price (FCFA)', Icons.payments_outlined),
+                          validator: (v) {
+                            final p = int.tryParse(v?.trim() ?? '');
+                            return (p == null || p <= 0)
+                                ? 'Enter a price > 0'
+                                : null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: widget.durationCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: _sheetInput(
+                              'Duration (mins)', Icons.timer_outlined),
+                          validator: (v) {
+                            final d = int.tryParse(v?.trim() ?? '');
+                            return (d == null || d <= 0)
+                                ? 'Enter minutes > 0'
+                                : null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFF4665C),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0x22F4665C),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.add_circle_outline, size: 20),
+                      label: const Text('Save Service'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _sheetInput(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Icon(icon, size: 20),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0x14000000)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0x14000000)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFF4665C), width: 1.6),
+      ),
+    );
+  }
 }
 
 // =============================================================================

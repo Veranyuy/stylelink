@@ -1,8 +1,14 @@
 -- ============================================================================
--- StyleLink — Supabase schema
--- Run this in the Supabase SQL editor (or `supabase db push`).
--- Mirrors the models in lib/models/*.dart and the queries in
--- lib/services/supabase_service.dart.
+-- StyleLink — HISTORICAL BASE SCHEMA (do not use for new deployments)
+-- ----------------------------------------------------------------------------
+-- The authoritative, idempotent schema and security model is:
+--   supabase/migrations/20261109000000_launch_readiness.sql
+-- Apply it with `supabase db push`, then run
+-- `supabase/verify_launch_readiness.sql`.
+--
+-- This file is retained for history. It still contains the old permissive
+-- profile policy and the verification_pin column; the launch migration
+-- replaces both. Running only this file leaves the database insecure.
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -167,9 +173,9 @@ create index if not exists providers_rating_idx on public.providers (rating desc
 
 alter table public.providers enable row level security;
 
-drop policy if exists "providers are readable by everyone" on public.providers;
-create policy "providers are readable by everyone"
-  on public.providers for select using (true);
+-- NOTE: the visibility-gated "providers are readable by everyone" policy
+-- lives further down, after provider_is_visible() is created (it needs the
+-- services table to exist first, and policies are parse-checked at creation).
 
 drop policy if exists "providers can manage their own row" on public.providers;
 create policy "providers can manage their own row"
@@ -200,9 +206,48 @@ create index if not exists services_provider_idx on public.services (provider_id
 
 alter table public.services enable row level security;
 
+-- Hidden-shop visibility helper: TRUE once the shop has >= 1 active
+-- service. SECURITY DEFINER so the providers/services policies below that
+-- call it cannot recurse through each other's RLS.
+create or replace function public.provider_is_visible(p_provider_id uuid)
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.services s
+    where s.provider_id = p_provider_id
+      and s.is_active
+    limit 1
+  );
+$$;
+
+revoke execute on function public.provider_is_visible(uuid) from public;
+grant execute on function public.provider_is_visible(uuid) to anon, authenticated;
+
+-- Providers: owner always readable; everyone else only when the shop lists
+-- at least one active service (the hidden-shop gate).
+drop policy if exists "providers are readable by everyone" on public.providers;
+create policy "providers are readable by everyone"
+  on public.providers for select using (
+    auth.uid() = user_id
+    or public.provider_is_visible(id)
+  );
+
 drop policy if exists "services are readable by everyone" on public.services;
 create policy "services are readable by everyone"
-  on public.services for select using (true);
+  on public.services for select using (
+    -- Same hidden-shop gate as providers: nothing about a hidden shop's
+    -- catalog leaks until it lists an active service. The shop's owner
+    -- keeps full read access through the manage-own policy below.
+    public.provider_is_visible(provider_id)
+    or exists (
+      select 1 from public.providers p
+      where p.id = services.provider_id and p.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "providers can manage their own services" on public.services;
 create policy "providers can manage their own services"

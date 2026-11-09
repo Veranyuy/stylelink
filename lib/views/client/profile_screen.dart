@@ -294,24 +294,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Business setup modal ──────────────────────────────────────────────
 
+  /// Opens the guided provider setup wizard (shop details → services →
+  /// hours → confirmation). Dismissible here since the user is browsing as
+  /// a client; when finished, the parent re-resolves the role.
   Future<void> _showBusinessSetup() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => ProviderOnboarding(
+          dismissible: true,
           onComplete: () {
             setState(() {});
             widget.onProviderUpgraded?.call();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'You are now a provider! Use the toggle in the top bar '
-                    'to switch to Provider Mode.',
-                  ),
-                ),
-              );
-            }
           },
         ),
       ),

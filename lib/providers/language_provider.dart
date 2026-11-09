@@ -268,7 +268,7 @@ const Map<String, String> _en = {
   'required': 'Required',
   'no_profile': 'No profile found',
   'no_profile_sub':
-      'We could not read your profile.\nRun supabase/schema.sql in the Supabase SQL editor, then sign out and back in.',
+      'We could not read your profile.\nApply the latest database migration, then sign out and back in.',
   'could_not_load': 'Could not load favorites',
   'pull_to_refresh': 'Pull to refresh or try again later.',
   'profile_photo_updated': 'Profile photo updated!',
@@ -470,7 +470,7 @@ const Map<String, String> _fr = {
   'required': 'Obligatoire',
   'no_profile': 'Profil introuvable',
   'no_profile_sub':
-      'Nous n\'avons pas pu lire votre profil.\nExécutez supabase/schema.sql dans l\'éditeur SQL Supabase, puis déconnectez-vous et reconnectez-vous.',
+      'Nous n\'avons pas pu lire votre profil.\nAppliquez la dernière migration de la base de données, puis déconnectez-vous et reconnectez-vous.',
   'could_not_load': 'Impossible de charger les favoris',
   'pull_to_refresh': 'Tirez pour rafraîchir ou réessayez plus tard.',
   'profile_photo_updated': 'Photo de profil mise à jour !',
