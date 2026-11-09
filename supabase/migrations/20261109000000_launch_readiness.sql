@@ -724,11 +724,17 @@ begin
     raise exception 'Only pending bookings can be accepted or declined';
   end if;
 
-  update public.bookings
-  set status = case when p_accept then 'confirmed' else 'rejected' end,
-      responded_at = now()
-  where id = p_booking_id
-  returning * into b;
+  if p_accept then
+    update public.bookings
+    set status = 'confirmed', responded_at = now()
+    where id = p_booking_id
+    returning * into b;
+  else
+    update public.bookings
+    set status = 'rejected', responded_at = now()
+    where id = p_booking_id
+    returning * into b;
+  end if;
   return b;
 end;
 $$;
