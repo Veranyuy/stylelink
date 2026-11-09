@@ -48,6 +48,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists fcm_token text;
+alter table public.profiles add column if not exists city text;
 alter table public.profiles add column if not exists language_preference text not null default 'en';
 
 alter table public.profiles enable row level security;
